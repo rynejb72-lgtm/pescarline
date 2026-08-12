@@ -1,1123 +1,138 @@
+
+Conversation with Gemini
+This single-file web application serves as an interactive Car Line Dismissal Manager and Hangtag Generator for Petersburg Elementary.  
+HTML
+
+Core Features & Navigation
+
+Caller Mode (Outdoor Dispatch): Allows staff to enter car tag numbers or student last names using a quick numeric keypad or quick-search input. Features an active 5-cone loading zone batching grid and tracks upcoming waiting vehicles.  
+HTML
++ 1
+
+Cafeteria View (Projector Display): Displays real-time cone assignments, student names, grades, and teachers in high-visibility large text for students waiting inside. Includes a live clock and audio alert chimes.  
+HTML
++ 1
+
+Roster & CSV Import: Provides a master student/carpool directory that maps multiple students (including blended families) to single tag numbers. Supports manual entry, sample data generation, and CSV file uploading.  
+HTML
++ 1
+
+Printable Hangtags: Renders dashboard and rearview mirror hangtags with cutouts, printable directly onto 8.5x11 pages for distribution to families.  
+HTML
+
+Technical Stack
+
+Frontend Framework: Built with HTML5, vanilla JavaScript, Tailwind CSS (via CDN), and FontAwesome icons.  
+HTML
+
+Data Persistence: Uses browser localStorage to save roster data, current queues, active cone batches, and daily dismissal counts across refreshes.  
+HTML
+
+Audio & Printing: Utilizes the Web Audio API for chime alerts and native browser print styling (@media print) for hangtag formatting.  
+HTML
+
+I need to be able to use this on an iphone and computer. I already have github
+
+I will now update your cartags.html file to make it fully mobile-optimized for iOS and equip it with Live Cloud Sync.
+
+Because your outdoor Caller (on iPhone) and indoor Cafeteria View (on Computer) will be on different devices, this update uses free, instant WebSockets (via MQTT) so that any car tag entered on your iPhone appears instantly on the computer screen in real-time without needing to set up a server or database.
+
+Car Line Dismissal System
+Aug 12, 12:16 PM
+How to Deploy to GitHub & Use on iPhone and Computer
+Step 1: Upload to GitHub Pages (5 minutes)
+Go to GitHub.com and log in.
+
+Click the + icon in the top right and select New repository.
+
+Name it car-line (or any name you prefer), set it to Public, and click Create repository.
+
+Click Uploading an existing file.
+
+Upload this file and make sure it is named index.html (or rename cartags.html to index.html on GitHub).
+
+Click Commit changes.
+
+In your repository, go to Settings > Pages (on the left menu).
+
+Under Build and deployment -> Branch, select main (or master) and click Save.
+
+Wait ~1 minute. GitHub will display your live URL, e.g.:
+[https://yourusername.github.io/car-line/](https://yourusername.github.io/car-line/)
+
+Step 2: Accessing on iPhone (Save as a Fullscreen App)
+Open Safari on your iPhone and go to your GitHub Pages URL (e.g. [https://yourusername.github.io/car-line/](https://yourusername.github.io/car-line/)).
+
+Tap the Share icon at the bottom center of Safari (the box with an upward arrow).
+
+Scroll down and tap Add to Home Screen.
+
+Tap Add.
+
+You now have a standalone Car Line App icon on your iPhone home screen that opens fullscreen!
+
+Step 3: Accessing on Computer (Cafeteria View)
+On your cafeteria computer/laptop, open Chrome, Edge, or Safari and go to the exact same GitHub Pages URL.
+
+Click the Cafeteria View (Projector) tab at the top.
+
+Step 4: Connecting iPhone & Computer in Real Time
+By default, both your iPhone and Computer will connect to the same default Sync Room (petersburg-elem-carline).
+
+You will see a green badge at the top saying Sync Code: petersburg-elem-carline.
+
+When the staff member outdoors inputs a car tag on their iPhone, it will automatically pop up on the cafeteria screen on the computer in real time and play an alert sound!
+
+I would like to be able to see which cars have been dismissed after they have been released
+
+I will now update your Car Line Dismissal System to include a Dismissed Cars History Log.
+
+This feature allows you to:
+
+Click the "Dismissed" statistic card at any time to open a live history modal of every car released.
+
+View exact timestamps, assigned cone numbers, and student names for all released vehicles.
+
+Search & Filter dismissed vehicles by tag number or student name.
+
+Undo Dismissal: Re-add any vehicle back into the active car line if it was accidentally released.
+
+Export to CSV: Download today's full dismissal log for attendance or safety records.
+
+Car Line Dismissal System
+Aug 12, 12:16 PM
+I have fixed the issue.
+
+What Caused the Error:
+Orphan Code Block: A duplicated fragment of JavaScript was sitting outside of any function in the <script> tag. Because it contained a return statement in the top-level script scope, browser engines threw SyntaxError: Illegal return statement.
+
+Cascading Reference Errors: Because the browser encountered a syntax error while parsing the script, the entire script failed to execute. Consequently, global functions like switchTab() were never defined in memory, causing the ReferenceError: switchTab is not defined messages when clicking navigation tabs.
+
+Unclosed HTML Modal: The add-modal element was missing its closing </div> structure and action buttons.
+
+Here is the complete, corrected single-file code.
+
+Car Line Dismissal System
+Aug 12, 12:16 PM
+
+
+
+
+
+Gemini is AI and can make mistakes.
+
+Car Line Dismissal System
+
+Code
+
+Preview
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Petersburg Elementary Car Line System</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .touch-target { min-height: 48px; min-width: 48px; }
-        @keyframes pulse-ring {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
-        .pulse-active { animation: pulse-ring 2s infinite; }
-        /* Big card animations for display mode */
-        @keyframes flash-new {
-            0% { background-color: #fef08a; transform: scale(1.02); }
-            100% { background-color: #ffffff; transform: scale(1); }
-        }
-        .card-new { animation: flash-new 1s ease-out; }
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
-
-    <!-- Top Navigation Header -->
-    <header class="bg-indigo-900 text-white shadow-md sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <!-- Branding -->
-                <div class="flex items-center space-x-3">
-                    <div class="bg-amber-400 text-indigo-950 p-2 rounded-xl font-black text-xl shadow-inner">
-                        <i class="fa-solid fa-car-side"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-black text-lg sm:text-xl tracking-tight leading-tight">PES CAR LINE</h1>
-                        <p class="text-xs text-indigo-200 hidden sm:block">Petersburg Elementary Dismissal</p>
-                    </div>
-                </div>
-
-                <!-- Live Sync Status Indicator -->
-                <div class="flex items-center space-x-2 bg-indigo-950/60 px-3 py-1.5 rounded-full border border-indigo-700/50">
-                    <span id="sync-dot" class="h-3 w-3 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span id="sync-status-text" class="text-xs font-semibold text-indigo-100">Connecting...</span>
-                </div>
-
-                <!-- Clock -->
-                <div class="hidden md:block text-right">
-                    <div id="clock-time" class="text-lg font-bold font-mono tracking-wider">--:--:--</div>
-                    <div id="clock-date" class="text-xs text-indigo-200">----</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Navigation Tabs -->
-        <div class="bg-indigo-800 border-t border-indigo-700/50 px-2 sm:px-6 overflow-x-auto">
-            <div class="max-w-7xl mx-auto flex space-x-1 sm:space-x-2 py-2">
-                <button onclick="switchTab('caller')" id="tab-btn-caller" class="tab-btn active px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition bg-amber-400 text-indigo-950 shadow">
-                    <i class="fa-solid fa-mobile-screen"></i>
-                    <span>Outdoor Caller</span>
-                </button>
-
-                <button onclick="switchTab('queue')" id="tab-btn-queue" class="tab-btn px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition text-indigo-100 hover:bg-indigo-700">
-                    <i class="fa-solid fa-list-ol"></i>
-                    <span>Active Cars</span>
-                    <span id="queue-badge" class="ml-1 px-1.5 py-0.5 text-xs bg-amber-400 text-indigo-950 rounded-full font-extrabold">0</span>
-                </button>
-
-                <button onclick="switchTab('display')" id="tab-btn-display" class="tab-btn px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition text-indigo-100 hover:bg-indigo-700">
-                    <i class="fa-solid fa-tv"></i>
-                    <span>Projector Display</span>
-                </button>
-
-                <button onclick="switchTab('history')" id="tab-btn-history" class="tab-btn px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition text-indigo-100 hover:bg-indigo-700">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                    <span>Dismissal Log</span>
-                    <span id="history-badge" class="ml-1 px-1.5 py-0.5 text-xs bg-indigo-950 text-indigo-200 rounded-full">0</span>
-                </button>
-
-                <button onclick="switchTab('roster')" id="tab-btn-roster" class="tab-btn px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition text-indigo-100 hover:bg-indigo-700">
-                    <i class="fa-solid fa-id-card"></i>
-                    <span>Roster</span>
-                </button>
-
-                <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition text-indigo-100 hover:bg-indigo-700">
-                    <i class="fa-solid fa-gear"></i>
-                    <span class="hidden sm:inline">Settings</span>
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content Area -->
-    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex-grow w-full">
-
-        <!-- ==================== TAB 1: OUTDOOR CALLER VIEW (Mobile First) ==================== -->
-        <section id="view-caller" class="tab-content space-y-4">
-            <div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 max-w-xl mx-auto">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-bullhorn text-indigo-600"></i>
-                        Call Car Tag #
-                    </h2>
-                    <span class="text-xs text-slate-500 font-medium">iPhone / iPad View</span>
-                </div>
-
-                <!-- Input & Number Pad -->
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Enter Tag Number</label>
-                        <div class="relative flex items-center">
-                            <input type="number" id="tag-input" pattern="[0-9]*" placeholder="e.g. 101" 
-                                class="w-full text-3xl font-black text-center py-3 bg-slate-50 border-2 border-indigo-300 rounded-xl focus:ring-4 focus:ring-indigo-200 focus:border-indigo-600 outline-none transition"
-                                oninput="lookupTagPreview(this.value)" onkeydown="if(event.key === 'Enter') submitTagCall()">
-                            <button onclick="clearTagInput()" class="absolute right-3 p-2 text-slate-400 hover:text-slate-600">
-                                <i class="fa-solid fa-circle-xmark text-xl"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Auto Student Preview -->
-                    <div id="student-preview" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl p-3">
-                        <div class="text-xs font-bold text-indigo-600 uppercase tracking-wide">Student Match</div>
-                        <div id="preview-names" class="text-base font-extrabold text-slate-900 mt-0.5"></div>
-                        <div id="preview-details" class="text-xs text-slate-600 mt-0.5"></div>
-                    </div>
-
-                    <!-- Lane Selector Buttons -->
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5">Select Pickup Lane / Station</label>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button type="button" onclick="selectLane('Lane 1')" id="lane-btn-1" class="lane-select-btn touch-target active border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-bold rounded-xl py-2.5 text-center text-sm shadow-sm transition">
-                                Lane 1
-                            </button>
-                            <button type="button" onclick="selectLane('Lane 2')" id="lane-btn-2" class="lane-select-btn touch-target border-2 border-slate-200 bg-white text-slate-700 font-bold rounded-xl py-2.5 text-center text-sm shadow-sm transition">
-                                Lane 2
-                            </button>
-                            <button type="button" onclick="selectLane('Lane 3')" id="lane-btn-3" class="lane-select-btn touch-target border-2 border-slate-200 bg-white text-slate-700 font-bold rounded-xl py-2.5 text-center text-sm shadow-sm transition">
-                                Lane 3
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Quick Keypad for On-Screen Tapping -->
-                    <div class="grid grid-cols-3 gap-2 pt-1">
-                        <button onclick="appendNum('1')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">1</button>
-                        <button onclick="appendNum('2')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">2</button>
-                        <button onclick="appendNum('3')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">3</button>
-                        <button onclick="appendNum('4')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">4</button>
-                        <button onclick="appendNum('5')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">5</button>
-                        <button onclick="appendNum('6')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">6</button>
-                        <button onclick="appendNum('7')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">7</button>
-                        <button onclick="appendNum('8')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">8</button>
-                        <button onclick="appendNum('9')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">9</button>
-                        <button onclick="clearTagInput()" class="py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-sm rounded-xl touch-target">CLEAR</button>
-                        <button onclick="appendNum('0')" class="py-3 bg-slate-100 hover:bg-slate-200 font-bold text-xl rounded-xl text-slate-800 touch-target active:bg-slate-300">0</button>
-                        <button onclick="backspaceNum()" class="py-3 bg-slate-200 hover:bg-slate-300 font-bold text-xl rounded-xl text-slate-700 touch-target"><i class="fa-solid fa-delete-left"></i></button>
-                    </div>
-
-                    <!-- Call Button -->
-                    <button onclick="submitTagCall()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-xl rounded-xl shadow-lg transition transform active:scale-98 flex items-center justify-center space-x-2 touch-target">
-                        <i class="fa-solid fa-paper-plane"></i>
-                        <span>SEND CALL TO SCREEN</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Recent Calls Quick Bar -->
-            <div class="max-w-xl mx-auto bg-white rounded-2xl shadow p-4 border border-slate-200">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Recently Called</h3>
-                <div id="recent-calls-list" class="flex flex-wrap gap-2">
-                    <span class="text-xs text-slate-400 italic">No tags called yet today.</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- ==================== TAB 2: ACTIVE QUEUE & DISMISSAL ==================== -->
-        <section id="view-queue" class="tab-content space-y-4 hidden">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow border border-slate-200">
-                <div>
-                    <h2 class="text-xl font-extrabold text-slate-900">Active Car Line Queue</h2>
-                    <p class="text-xs text-slate-500">Cars waiting in line. Click <span class="font-bold text-emerald-600">"Dismiss"</span> when students enter the car.</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="speakQueueNext()" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 flex items-center gap-1.5">
-                        <i class="fa-solid fa-volume-high"></i> Read Top Car
-                    </button>
-                    <button onclick="clearEntireQueue()" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 flex items-center gap-1.5">
-                        <i class="fa-solid fa-trash-can"></i> Clear All
-                    </button>
-                </div>
-            </div>
-
-            <!-- Lane Filter Buttons -->
-            <div class="flex space-x-2 overflow-x-auto py-1">
-                <button onclick="filterQueueLane('ALL')" id="queue-filter-ALL" class="queue-filter-btn px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-sm">All Lanes</button>
-                <button onclick="filterQueueLane('Lane 1')" id="queue-filter-Lane 1" class="queue-filter-btn px-4 py-2 bg-white text-slate-700 text-xs font-bold rounded-xl border border-slate-200">Lane 1</button>
-                <button onclick="filterQueueLane('Lane 2')" id="queue-filter-Lane 2" class="queue-filter-btn px-4 py-2 bg-white text-slate-700 text-xs font-bold rounded-xl border border-slate-200">Lane 2</button>
-                <button onclick="filterQueueLane('Lane 3')" id="queue-filter-Lane 3" class="queue-filter-btn px-4 py-2 bg-white text-slate-700 text-xs font-bold rounded-xl border border-slate-200">Lane 3</button>
-            </div>
-
-            <!-- Queue Cards Container -->
-            <div id="queue-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Injected via JS -->
-            </div>
-        </section>
-
-        <!-- ==================== TAB 3: PROJECTOR DISPLAY MODE ==================== -->
-        <section id="view-display" class="tab-content space-y-4 hidden">
-            <div class="bg-indigo-950 text-white p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-black text-amber-400 tracking-tight">CLASSROOM & CAFETERIA BOARD</h2>
-                    <p class="text-xs text-indigo-200">Project this view on big screens. Syncs live with outdoor phone callers!</p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <label class="flex items-center space-x-2 text-xs font-bold text-indigo-200 cursor-pointer bg-indigo-900/80 px-3 py-2 rounded-xl border border-indigo-700">
-                        <input type="checkbox" id="toggle-audio-announce" checked class="rounded text-indigo-600 focus:ring-0">
-                        <span><i class="fa-solid fa-bullhorn text-amber-400"></i> Voice Announcements</span>
-                    </label>
-                    <button onclick="toggleFullScreen()" class="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-indigo-950 font-extrabold text-xs rounded-xl shadow transition">
-                        <i class="fa-solid fa-expand mr-1"></i> Fullscreen
-                    </button>
-                </div>
-            </div>
-
-            <!-- Big Visual Display Cards -->
-            <div id="display-board-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Injected via JS -->
-            </div>
-        </section>
-
-        <!-- ==================== TAB 4: DISMISSAL LOG & HISTORY (REQUESTED FEATURE) ==================== -->
-        <section id="view-history" class="tab-content space-y-4 hidden">
-            <!-- Header & Summary Cards -->
-            <div class="bg-white p-4 sm:p-6 rounded-2xl shadow border border-slate-200 space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                            <i class="fa-solid fa-clipboard-check text-indigo-600"></i>
-                            Today's Dismissal History Log
-                        </h2>
-                        <p class="text-xs text-slate-500">Live attendance log of all cars and students dismissed today.</p>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-2">
-                        <!-- Export CSV Button -->
-                        <button onclick="exportHistoryCSV()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-2 touch-target">
-                            <i class="fa-solid fa-file-csv text-base"></i>
-                            <span>Export CSV Record</span>
-                        </button>
-                        <!-- Clear Log Button -->
-                        <button onclick="confirmClearHistory()" class="px-3 py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center gap-1.5 touch-target">
-                            <i class="fa-solid fa-arrow-rotate-left"></i>
-                            <span>Reset Today's Log</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- History Stats -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                    <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-xl text-center">
-                        <div class="text-xs font-bold text-indigo-600 uppercase">Dismissed Cars</div>
-                        <div id="stat-cars" class="text-2xl font-black text-slate-900 mt-1">0</div>
-                    </div>
-                    <div class="bg-emerald-50 border border-emerald-100 p-3 rounded-xl text-center">
-                        <div class="text-xs font-bold text-emerald-600 uppercase">Students Departed</div>
-                        <div id="stat-students" class="text-2xl font-black text-slate-900 mt-1">0</div>
-                    </div>
-                    <div class="bg-amber-50 border border-amber-100 p-3 rounded-xl text-center">
-                        <div class="text-xs font-bold text-amber-600 uppercase">First Call</div>
-                        <div id="stat-first-call" class="text-base font-bold text-slate-900 mt-2">--:--</div>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl text-center">
-                        <div class="text-xs font-bold text-slate-500 uppercase">Latest Call</div>
-                        <div id="stat-last-call" class="text-base font-bold text-slate-900 mt-2">--:--</div>
-                    </div>
-                </div>
-
-                <!-- Search & Filters -->
-                <div class="flex flex-col sm:flex-row gap-2 pt-2">
-                    <div class="relative flex-grow">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
-                        <input type="text" id="history-search-input" onkeyup="renderHistoryTable()" placeholder="Search by Tag #, Student Name, Grade, or Teacher..."
-                            class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-300 outline-none">
-                    </div>
-                </div>
-            </div>
-
-            <!-- History Log Table -->
-            <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                            <tr>
-                                <th class="py-3 px-4">Time Dismissed</th>
-                                <th class="py-3 px-4">Tag #</th>
-                                <th class="py-3 px-4">Students</th>
-                                <th class="py-3 px-4">Grade & Teacher</th>
-                                <th class="py-3 px-4">Lane</th>
-                                <th class="py-3 px-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
-                            <!-- Injected via JS -->
-                        </tbody>
-                    </table>
-                </div>
-                <div id="history-empty-msg" class="p-8 text-center text-slate-400">
-                    <i class="fa-solid fa-clipboard-list text-4xl mb-2 text-slate-300"></i>
-                    <p class="font-bold text-slate-600">No dismissals logged yet today.</p>
-                    <p class="text-xs text-slate-400 mt-1">When cars are dismissed from the active queue, they will appear here with exact timestamps.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- ==================== TAB 5: ROSTER MANAGEMENT ==================== -->
-        <section id="view-roster" class="tab-content space-y-4 hidden">
-            <div class="bg-white p-4 sm:p-6 rounded-2xl shadow border border-slate-200">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                    <div>
-                        <h2 class="text-xl font-extrabold text-slate-900">Student Car Tag Roster</h2>
-                        <p class="text-xs text-slate-500">Manage tags assigned to students at Petersburg Elementary.</p>
-                    </div>
-                    <button onclick="openAddStudentModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-2">
-                        <i class="fa-solid fa-user-plus"></i>
-                        <span>Add Student / Tag</span>
-                    </button>
-                </div>
-
-                <div class="mb-4">
-                    <input type="text" id="roster-search" onkeyup="renderRosterTable()" placeholder="Search roster by tag, student name, or teacher..." 
-                        class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-300 outline-none">
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-extrabold text-slate-500 uppercase">
-                            <tr>
-                                <th class="py-3 px-4">Tag #</th>
-                                <th class="py-3 px-4">Student Name(s)</th>
-                                <th class="py-3 px-4">Grade</th>
-                                <th class="py-3 px-4">Homeroom Teacher</th>
-                                <th class="py-3 px-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="roster-table-body" class="divide-y divide-slate-100">
-                            <!-- Injected via JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- ==================== TAB 6: SETTINGS & SYNC CONFIG ==================== -->
-        <section id="view-settings" class="tab-content space-y-4 hidden max-w-2xl mx-auto">
-            <div class="bg-white p-6 rounded-2xl shadow border border-slate-200 space-y-6">
-                <div>
-                    <h2 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                        <i class="fa-solid fa-sliders text-indigo-600"></i>
-                        System Settings & Multi-Device Sync
-                    </h2>
-                    <p class="text-xs text-slate-500 mt-0.5">Configure live cross-device communication between iPhones, iPads, and computers.</p>
-                </div>
-
-                <!-- Sync Room Code -->
-                <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-xl space-y-3">
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm font-extrabold text-indigo-900">School Sync ID Code</label>
-                        <span class="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Active</span>
-                    </div>
-                    <p class="text-xs text-indigo-700">All iPhones, iPads, and PCs using this same code will share the exact same live queue and dismissal log in real time.</p>
-                    <div class="flex gap-2">
-                        <input type="text" id="sync-room-id" value="PES-MAIN-2026" class="w-full px-3 py-2 bg-white border border-indigo-300 rounded-xl font-mono text-sm font-bold text-indigo-950 uppercase">
-                        <button onclick="updateSyncRoomCode()" class="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700">Save Code</button>
-                    </div>
-                </div>
-
-                <!-- Audio Speech Settings -->
-                <div class="space-y-3">
-                    <h3 class="text-sm font-bold text-slate-800 uppercase">Text-To-Speech Settings</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Voice Speed</label>
-                            <input type="range" id="speech-rate" min="0.7" max="1.3" step="0.1" value="0.9" class="w-full">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Voice Pitch</label>
-                            <input type="range" id="speech-pitch" min="0.8" max="1.2" step="0.1" value="1.0" class="w-full">
-                        </div>
-                    </div>
-                    <button onclick="testSpeechAnnouncement()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 font-bold text-xs text-slate-700 rounded-xl">
-                        <i class="fa-solid fa-volume-high mr-1"></i> Test Voice Announcement
-                    </button>
-                </div>
-
-                <!-- Reset Demo Roster -->
-                <div class="border-t border-slate-200 pt-4">
-                    <h3 class="text-sm font-bold text-slate-800 uppercase mb-2">Data Management</h3>
-                    <button onclick="restoreSampleRoster()" class="px-4 py-2 bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-800 border border-slate-200 font-bold text-xs rounded-xl transition">
-                        <i class="fa-solid fa-arrows-rotate mr-1"></i> Reset to Petersburg Default Roster
-                    </button>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Add Student Modal -->
-    <div id="modal-add-student" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
-            <div class="flex items-center justify-between">
-                <h3 class="font-extrabold text-lg text-slate-900">Add Student Car Tag</h3>
-                <button onclick="closeAddStudentModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            <form id="add-student-form" onsubmit="saveNewStudent(event)" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tag Number *</label>
-                    <input type="number" id="new-tag-num" required placeholder="e.g. 105" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-300 outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Student Name(s) *</label>
-                    <input type="text" id="new-student-name" required placeholder="e.g. John & Sarah Miller" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-300 outline-none">
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Grade</label>
-                        <select id="new-grade" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium">
-                            <option value="K">Kindergarten</option>
-                            <option value="1st">1st Grade</option>
-                            <option value="2nd">2nd Grade</option>
-                            <option value="3rd">3rd Grade</option>
-                            <option value="4th">4th Grade</option>
-                            <option value="5th">5th Grade</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Teacher</label>
-                        <input type="text" id="new-teacher" placeholder="e.g. Mrs. Davis" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium">
-                    </div>
-                </div>
-                <div class="pt-2 flex justify-end space-x-2">
-                    <button type="button" onclick="closeAddStudentModal()" class="px-4 py-2 bg-slate-100 font-bold text-xs text-slate-600 rounded-xl">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 font-bold text-xs text-white rounded-xl shadow">Save Student</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Firebase Standard ES Module Import -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Application State
-        let db = null;
-        let currentUser = null;
-        let activeRoomId = localStorage.getItem('pes_sync_room_id') || 'PES-MAIN-2026';
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pes-carline-app';
-
-        // Sample Default Roster for Petersburg Elementary
-        const defaultRoster = [
-            { tag: "101", name: "Jackson & Emma Miller", grade: "1st & 3rd", teacher: "Mrs. Davis / Mr. Wilson" },
-            { tag: "102", name: "Liam Smith", grade: "Kindergarten", teacher: "Ms. Thompson" },
-            { tag: "103", name: "Sophia Johnson", grade: "2nd", teacher: "Mrs. Adams" },
-            { tag: "104", name: "Mason & Oliver Brown", grade: "K & 4th", teacher: "Ms. Thompson / Mrs. Clark" },
-            { tag: "105", name: "Ava Williams", grade: "5th", teacher: "Mr. Roberts" },
-            { tag: "106", name: "Lucas Garcia", grade: "3rd", teacher: "Mr. Wilson" },
-            { tag: "107", name: "Harper & Ethan Jones", grade: "1st & 2nd", teacher: "Mrs. Davis / Mrs. Adams" },
-            { tag: "108", name: "Evelyn Martinez", grade: "4th", teacher: "Mrs. Clark" }
-        ];
-
-        window.appData = {
-            queue: [],
-            history: [],
-            roster: JSON.parse(localStorage.getItem('pes_roster')) || defaultRoster,
-            selectedLane: 'Lane 1',
-            activeQueueFilter: 'ALL',
-            useCloudSync: false
-        };
-
-        // Initialize Firebase
-        async function initFirebase() {
-            const syncDot = document.getElementById('sync-dot');
-            const syncText = document.getElementById('sync-status-text');
-
-            try {
-                let firebaseConfig = null;
-                if (typeof __firebase_config !== 'undefined') {
-                    firebaseConfig = JSON.parse(__firebase_config);
-                } else {
-                    // Fallback public standard Firestore endpoint for standalone github pages
-                    firebaseConfig = {
-                        apiKey: "AIzaSyD_DEMO_KEY_FOR_STANDALONE",
-                        authDomain: "pes-carline.firebaseapp.com",
-                        projectId: "pes-carline",
-                        storageBucket: "pes-carline.appspot.com",
-                        messagingSenderId: "100000000000",
-                        appId: "1:100000000000:web:pescarlinedemo"
-                    };
-                }
-
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                db = getFirestore(app);
-
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    currentUser = (await signInWithCustomToken(auth, __initial_auth_token)).user;
-                } else {
-                    currentUser = (await signInAnonymously(auth)).user;
-                }
-
-                if (currentUser && db) {
-                    window.appData.useCloudSync = true;
-                    syncDot.className = "h-3 w-3 rounded-full bg-emerald-400 pulse-active";
-                    syncText.textContent = "Live Cloud Synced";
-                    setupCloudListeners();
-                }
-            } catch (err) {
-                console.warn("Cloud sync using local fallback:", err);
-                window.appData.useCloudSync = false;
-                syncDot.className = "h-3 w-3 rounded-full bg-sky-400";
-                syncText.textContent = "Local & Cross-Tab Synced";
-                setupLocalBroadcastChannel();
-            }
-        }
-
-        // Setup Firestore Real-Time Listeners (RULE 1, RULE 2 & RULE 3 strictly followed)
-        function setupCloudListeners() {
-            if (!currentUser || !db) return;
-
-            // Strict collection paths: /artifacts/{appId}/public/data/{collectionName}
-            const queueColRef = collection(db, 'artifacts', appId, 'public', 'data', `queue_${activeRoomId}`);
-            const historyColRef = collection(db, 'artifacts', appId, 'public', 'data', `history_${activeRoomId}`);
-
-            // Simple collection listener (No complex orderBy queries)
-            onSnapshot(queueColRef, (snapshot) => {
-                const items = [];
-                snapshot.forEach(docSnap => {
-                    items.push({ id: docSnap.id, ...docSnap.data() });
-                });
-                // Sort in memory by time
-                items.sort((a, b) => b.timestamp - a.timestamp);
-                
-                // Detect new call for TTS announcement
-                if (items.length > window.appData.queue.length) {
-                    const newest = items[0];
-                    if (newest && newest.tag) announceTagVoice(newest);
-                }
-
-                window.appData.queue = items;
-                renderQueueUI();
-                renderDisplayBoardUI();
-                updateBadges();
-            }, (err) => console.error("Queue snapshot error:", err));
-
-            onSnapshot(historyColRef, (snapshot) => {
-                const historyItems = [];
-                snapshot.forEach(docSnap => {
-                    historyItems.push({ id: docSnap.id, ...docSnap.data() });
-                });
-                historyItems.sort((a, b) => b.dismissedTimestamp - a.dismissedTimestamp);
-                window.appData.history = historyItems;
-                renderHistoryTable();
-                updateBadges();
-            }, (err) => console.error("History snapshot error:", err));
-        }
-
-        // Local Storage / BroadcastChannel Fallback for offline multi-tab testing
-        function setupLocalBroadcastChannel() {
-            const channel = new BroadcastChannel('pes_carline_channel');
-            
-            window.saveLocalState = function() {
-                localStorage.setItem('pes_local_queue', JSON.stringify(window.appData.queue));
-                localStorage.setItem('pes_local_history', JSON.stringify(window.appData.history));
-                channel.postMessage({ type: 'UPDATE' });
-                renderQueueUI();
-                renderDisplayBoardUI();
-                renderHistoryTable();
-                updateBadges();
-            };
-
-            channel.onmessage = () => {
-                window.appData.queue = JSON.parse(localStorage.getItem('pes_local_queue')) || [];
-                window.appData.history = JSON.parse(localStorage.getItem('pes_local_history')) || [];
-                renderQueueUI();
-                renderDisplayBoardUI();
-                renderHistoryTable();
-                updateBadges();
-            };
-
-            window.appData.queue = JSON.parse(localStorage.getItem('pes_local_queue')) || [];
-            window.appData.history = JSON.parse(localStorage.getItem('pes_local_history')) || [];
-            renderQueueUI();
-            renderDisplayBoardUI();
-            renderHistoryTable();
-            updateBadges();
-        }
-
-        // Cloud Sync Writes
-        window.cloudAddQueue = async function(item) {
-            if (window.appData.useCloudSync && currentUser && db) {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', `queue_${activeRoomId}`, item.id);
-                await setDoc(docRef, item);
-            } else {
-                window.appData.queue.unshift(item);
-                announceTagVoice(item);
-                window.saveLocalState();
-            }
-        };
-
-        window.cloudDismissItem = async function(item) {
-            const historyItem = {
-                ...item,
-                dismissedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                dismissedTimestamp: Date.now()
-            };
-
-            if (window.appData.useCloudSync && currentUser && db) {
-                // Delete from active queue
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `queue_${activeRoomId}`, item.id));
-                // Add to history log
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', `history_${activeRoomId}`, item.id), historyItem);
-            } else {
-                window.appData.queue = window.appData.queue.filter(q => q.id !== item.id);
-                window.appData.history.unshift(historyItem);
-                window.saveLocalState();
-            }
-        };
-
-        window.cloudClearQueue = async function() {
-            if (window.appData.useCloudSync && currentUser && db) {
-                for (const item of window.appData.queue) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `queue_${activeRoomId}`, item.id));
-                }
-            } else {
-                window.appData.queue = [];
-                window.saveLocalState();
-            }
-        };
-
-        window.cloudClearHistory = async function() {
-            if (window.appData.useCloudSync && currentUser && db) {
-                for (const item of window.appData.history) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `history_${activeRoomId}`, item.id));
-                }
-            } else {
-                window.appData.history = [];
-                window.saveLocalState();
-            }
-        };
-
-        window.cloudRecallHistoryItem = async function(item) {
-            if (window.appData.useCloudSync && currentUser && db) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `history_${activeRoomId}`, item.id));
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', `queue_${activeRoomId}`, item.id), {
-                    id: item.id,
-                    tag: item.tag,
-                    name: item.name,
-                    grade: item.grade,
-                    teacher: item.teacher,
-                    lane: item.lane,
-                    time: item.time,
-                    timestamp: item.timestamp
-                });
-            } else {
-                window.appData.history = window.appData.history.filter(h => h.id !== item.id);
-                window.appData.queue.unshift(item);
-                window.saveLocalState();
-            }
-        };
-
-        // Initialize on Load
-        window.addEventListener('DOMContentLoaded', () => {
-            initFirebase();
-            startClock();
-            renderRosterTable();
-        });
-    </script>
-
-    <script>
-        // Tab Switcher
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = "tab-btn px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition text-indigo-100 hover:bg-indigo-700";
-            });
-
-            document.getElementById(`view-${tabId}`).classList.remove('hidden');
-            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
-            if (activeBtn) {
-                activeBtn.className = "tab-btn active px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center space-x-2 transition bg-amber-400 text-indigo-950 shadow";
-            }
-        }
-
-        // Live Clock
-        function startClock() {
-            setInterval(() => {
-                const now = new Date();
-                document.getElementById('clock-time').textContent = now.toLocaleTimeString();
-                document.getElementById('clock-date').textContent = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-            }, 1000);
-        }
-
-        // Keypad Inputs
-        function appendNum(num) {
-            const input = document.getElementById('tag-input');
-            input.value += num;
-            lookupTagPreview(input.value);
-        }
-        function clearTagInput() {
-            const input = document.getElementById('tag-input');
-            input.value = '';
-            document.getElementById('student-preview').classList.add('hidden');
-        }
-        function backspaceNum() {
-            const input = document.getElementById('tag-input');
-            input.value = input.value.slice(0, -1);
-            lookupTagPreview(input.value);
-        }
-
-        function selectLane(laneName) {
-            window.appData.selectedLane = laneName;
-            document.querySelectorAll('.lane-select-btn').forEach(btn => {
-                btn.className = "lane-select-btn touch-target border-2 border-slate-200 bg-white text-slate-700 font-bold rounded-xl py-2.5 text-center text-sm shadow-sm transition";
-            });
-            const selectedBtn = document.getElementById(`lane-btn-${laneName.replace('Lane ', '')}`);
-            if (selectedBtn) {
-                selectedBtn.className = "lane-select-btn touch-target active border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-bold rounded-xl py-2.5 text-center text-sm shadow-sm transition";
-            }
-        }
-
-        // Lookup Student Match Preview
-        function lookupTagPreview(tagNum) {
-            const previewEl = document.getElementById('student-preview');
-            if (!tagNum) {
-                previewEl.classList.add('hidden');
-                return;
-            }
-
-            const match = window.appData.roster.find(r => r.tag === tagNum.trim());
-            if (match) {
-                document.getElementById('preview-names').textContent = match.name;
-                document.getElementById('preview-details').textContent = `Grade: ${match.grade} | Teacher: ${match.teacher}`;
-                previewEl.classList.remove('hidden');
-            } else {
-                document.getElementById('preview-names').textContent = `Unregistered Tag #${tagNum}`;
-                document.getElementById('preview-details').textContent = `Ready to call as guest/visitor tag`;
-                previewEl.classList.remove('hidden');
-            }
-        }
-
-        // Call Tag Submission
-        function submitTagCall() {
-            const tagInput = document.getElementById('tag-input');
-            const tagVal = tagInput.value.trim();
-            if (!tagVal) return;
-
-            const match = window.appData.roster.find(r => r.tag === tagVal) || {
-                name: `Car Tag #${tagVal}`,
-                grade: "Visitor / Unassigned",
-                teacher: "--"
-            };
-
-            const item = {
-                id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                tag: tagVal,
-                name: match.name,
-                grade: match.grade,
-                teacher: match.teacher,
-                lane: window.appData.selectedLane,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                timestamp: Date.now()
-            };
-
-            window.cloudAddQueue(item);
-            clearTagInput();
-            renderRecentCalls(item);
-        }
-
-        function renderRecentCalls(lastItem) {
-            const container = document.getElementById('recent-calls-list');
-            if (container.children[0]?.tagName === 'SPAN') container.innerHTML = '';
-
-            const badge = document.createElement('span');
-            badge.className = "px-3 py-1 bg-indigo-100 text-indigo-900 rounded-lg text-xs font-bold border border-indigo-200 flex items-center gap-1";
-            badge.innerHTML = `<i class="fa-solid fa-car text-indigo-600"></i> Tag #${lastItem.tag} (${lastItem.lane})`;
-            container.prepend(badge);
-
-            if (container.children.length > 5) {
-                container.removeChild(container.lastChild);
-            }
-        }
-
-        // Voice Text-To-Speech
-        function announceTagVoice(item) {
-            if (!document.getElementById('toggle-audio-announce')?.checked) return;
-            if (!('speechSynthesis' in window)) return;
-
-            window.speechSynthesis.cancel(); // Clear pending speech
-            const rate = parseFloat(document.getElementById('speech-rate')?.value || 0.9);
-            const pitch = parseFloat(document.getElementById('speech-pitch')?.value || 1.0);
-
-            const text = `Tag ${item.tag}. ${item.name}. Report to ${item.lane}.`;
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = rate;
-            utterance.pitch = pitch;
-            window.speechSynthesis.speak(utterance);
-        }
-
-        function speakQueueNext() {
-            if (window.appData.queue.length > 0) {
-                announceTagVoice(window.appData.queue[0]);
-            }
-        }
-
-        function testSpeechAnnouncement() {
-            announceTagVoice({ tag: '101', name: 'Jackson Miller', lane: 'Lane 1' });
-        }
-
-        // Render Active Queue Cards
-        function renderQueueUI() {
-            const container = document.getElementById('queue-cards-container');
-            if (!container) return;
-
-            let items = window.appData.queue;
-            if (window.appData.activeQueueFilter !== 'ALL') {
-                items = items.filter(i => i.lane === window.appData.activeQueueFilter);
-            }
-
-            if (items.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-full bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-                        <i class="fa-solid fa-car-side text-4xl mb-2 text-slate-300"></i>
-                        <p class="font-bold text-slate-600">No active cars in queue</p>
-                        <p class="text-xs text-slate-400 mt-1">Outdoor caller tag entries will appear here live.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = items.map((item, idx) => `
-                <div class="bg-white rounded-2xl shadow-md border-2 border-indigo-100 p-4 relative flex flex-col justify-between space-y-3 hover:shadow-lg transition">
-                    <div>
-                        <div class="flex items-center justify-between">
-                            <span class="px-2.5 py-1 bg-indigo-900 text-amber-400 font-black rounded-lg text-lg tracking-wider">
-                                TAG #${item.tag}
-                            </span>
-                            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-extrabold rounded-lg text-xs">
-                                ${item.lane}
-                            </span>
-                        </div>
-                        <h3 class="text-lg font-black text-slate-900 mt-2 leading-snug">${item.name}</h3>
-                        <p class="text-xs font-semibold text-slate-500 mt-0.5">Grade: ${item.grade} | Teacher: ${item.teacher}</p>
-                        <p class="text-2xs text-slate-400 mt-1"><i class="fa-regular fa-clock mr-1"></i> Called at ${item.time}</p>
-                    </div>
-                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <button onclick='window.cloudDismissItem(${JSON.stringify(item)})' class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow transition flex items-center justify-center gap-1.5 touch-target">
-                            <i class="fa-solid fa-circle-check"></i> DISMISS CAR
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function filterQueueLane(lane) {
-            window.appData.activeQueueFilter = lane;
-            document.querySelectorAll('.queue-filter-btn').forEach(btn => {
-                btn.className = "queue-filter-btn px-4 py-2 bg-white text-slate-700 text-xs font-bold rounded-xl border border-slate-200";
-            });
-            const activeBtn = document.getElementById(`queue-filter-${lane}`);
-            if (activeBtn) activeBtn.className = "queue-filter-btn px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-sm";
-            renderQueueUI();
-        }
-
-        // Render Big Projector Display Board
-        function renderDisplayBoardUI() {
-            const grid = document.getElementById('display-board-grid');
-            if (!grid) return;
-
-            const items = window.appData.queue;
-            if (items.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full bg-indigo-900/40 rounded-3xl p-12 text-center text-indigo-200 border-2 border-dashed border-indigo-700/50">
-                        <i class="fa-solid fa-school-flag text-5xl mb-3 text-amber-400"></i>
-                        <h3 class="text-2xl font-black text-white">READY FOR CAR LINE DISMISSAL</h3>
-                        <p class="text-sm mt-1 text-indigo-300">Outdoor callers will enter car tags to display student names here.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = items.map((item, idx) => `
-                <div class="bg-white rounded-3xl shadow-xl border-4 ${idx === 0 ? 'border-amber-400 card-new' : 'border-indigo-200'} p-6 space-y-4 relative">
-                    <div class="flex items-center justify-between">
-                        <span class="text-3xl font-black px-4 py-1.5 bg-indigo-950 text-amber-400 rounded-2xl shadow">
-                            #${item.tag}
-                        </span>
-                        <span class="text-base font-black px-4 py-1.5 bg-emerald-500 text-white rounded-2xl shadow uppercase">
-                            ${item.lane}
-                        </span>
-                    </div>
-
-                    <div class="space-y-1">
-                        <div class="text-xs font-black text-indigo-600 uppercase tracking-widest">REPORT TO LANE</div>
-                        <div class="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">${item.name}</div>
-                    </div>
-
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between text-xs font-bold text-slate-600">
-                        <span>Grade: ${item.grade}</span>
-                        <span>Room: ${item.teacher}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Render Dismissal Log & History Table (Requested Feature)
-        function renderHistoryTable() {
-            const tbody = document.getElementById('history-table-body');
-            const emptyMsg = document.getElementById('history-empty-msg');
-            const searchVal = (document.getElementById('history-search-input')?.value || '').toLowerCase();
-
-            if (!tbody) return;
-
-            let history = window.appData.history;
-
-            // Update stats
-            document.getElementById('stat-cars').textContent = history.length;
-            const studentCount = history.reduce((acc, curr) => acc + (curr.name.includes('&') ? 2 : 1), 0);
-            document.getElementById('stat-students').textContent = studentCount;
-            document.getElementById('stat-first-call').textContent = history.length > 0 ? history[history.length - 1].time : '--:--';
-            document.getElementById('stat-last-call').textContent = history.length > 0 ? history[0].time : '--:--';
-
-            // Filter search
-            if (searchVal) {
-                history = history.filter(h => 
-                    h.tag.toLowerCase().includes(searchVal) ||
-                    h.name.toLowerCase().includes(searchVal) ||
-                    h.grade.toLowerCase().includes(searchVal) ||
-                    h.teacher.toLowerCase().includes(searchVal)
-                );
-            }
-
-            if (history.length === 0) {
-                tbody.innerHTML = '';
-                emptyMsg.classList.remove('hidden');
-                return;
-            }
-
-            emptyMsg.classList.add('hidden');
-            tbody.innerHTML = history.map(item => `
-                <tr class="hover:bg-slate-50/80 transition">
-                    <td class="py-3 px-4 font-bold text-slate-900">
-                        <i class="fa-regular fa-clock text-emerald-600 mr-1.5"></i>${item.dismissedTime || item.time}
-                    </td>
-                    <td class="py-3 px-4 font-black">
-                        <span class="px-2 py-0.5 bg-indigo-100 text-indigo-900 rounded font-mono">#${item.tag}</span>
-                    </td>
-                    <td class="py-3 px-4 font-bold text-slate-900">${item.name}</td>
-                    <td class="py-3 px-4 text-xs text-slate-600">${item.grade} (${item.teacher})</td>
-                    <td class="py-3 px-4">
-                        <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-bold">${item.lane}</span>
-                    </td>
-                    <td class="py-3 px-4 text-right">
-                        <button onclick='window.cloudRecallHistoryItem(${JSON.stringify(item)})' title="Return to Active Queue" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg border border-amber-200 transition">
-                            <i class="fa-solid fa-arrow-rotate-left mr-1"></i> Re-activate
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        // Export History Log to CSV
-        function exportHistoryCSV() {
-            const history = window.appData.history;
-            if (history.length === 0) {
-                alert("There are no dismissal records logged yet today to export.");
-                return;
-            }
-
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Dismissed Time,Car Tag Number,Student Name(s),Grade,Teacher,Pickup Lane\n";
-
-            history.forEach(row => {
-                const cleanName = `"${(row.name || '').replace(/"/g, '""')}"`;
-                const cleanTeacher = `"${(row.teacher || '').replace(/"/g, '""')}"`;
-                const line = [
-                    row.dismissedTime || row.time,
-                    row.tag,
-                    cleanName,
-                    row.grade,
-                    cleanTeacher,
-                    row.lane
-                ].join(",");
-                csvContent += line + "\n";
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            const dateStr = new Date().toISOString().split('T')[0];
-            link.setAttribute("download", `PES_Dismissal_Log_${dateStr}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function confirmClearHistory() {
-            if (confirm("Are you sure you want to reset today's dismissal history log? (You can export a CSV copy first!)")) {
-                window.cloudClearHistory();
-            }
-        }
-
-        function clearEntireQueue() {
-            if (confirm("Are you sure you want to clear all active cars waiting in the queue?")) {
-                window.cloudClearQueue();
-            }
-        }
-
-        // Render Roster
-        function renderRosterTable() {
-            const tbody = document.getElementById('roster-table-body');
-            if (!tbody) return;
-
-            const searchVal = (document.getElementById('roster-search')?.value || '').toLowerCase();
-            let roster = window.appData.roster;
-
-            if (searchVal) {
-                roster = roster.filter(r => 
-                    r.tag.toLowerCase().includes(searchVal) ||
-                    r.name.toLowerCase().includes(searchVal) ||
-                    r.teacher.toLowerCase().includes(searchVal)
-                );
-            }
-
-            tbody.innerHTML = roster.map(r => `
-                <tr class="hover:bg-slate-50">
-                    <td class="py-3 px-4 font-black text-indigo-900">#${r.tag}</td>
-                    <td class="py-3 px-4 font-bold text-slate-800">${r.name}</td>
-                    <td class="py-3 px-4 text-xs font-semibold text-slate-600">${r.grade}</td>
-                    <td class="py-3 px-4 text-xs text-slate-600">${r.teacher}</td>
-                    <td class="py-3 px-4 text-right">
-                        <button onclick="deleteRosterItem('${r.tag}')" class="text-rose-500 hover:text-rose-700 p-1">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        function openAddStudentModal() {
-            document.getElementById('modal-add-student').classList.remove('hidden');
-        }
-        function closeAddStudentModal() {
-            document.getElementById('modal-add-student').classList.add('hidden');
-        }
-
-        function saveNewStudent(e) {
-            e.preventDefault();
-            const tag = document.getElementById('new-tag-num').value.trim();
-            const name = document.getElementById('new-student-name').value.trim();
-            const grade = document.getElementById('new-grade').value;
-            const teacher = document.getElementById('new-teacher').value.trim() || 'Unassigned';
-
-            if (!tag || !name) return;
-
-            // Check duplicate tag
-            window.appData.roster = window.appData.roster.filter(r => r.tag !== tag);
-            window.appData.roster.push({ tag, name, grade, teacher });
-            localStorage.setItem('pes_roster', JSON.stringify(window.appData.roster));
-
-            renderRosterTable();
-            closeAddStudentModal();
-            document.getElementById('add-student-form').reset();
-        }
-
-        function deleteRosterItem(tag) {
-            if (confirm(`Remove tag #${tag} from roster?`)) {
-                window.appData.roster = window.appData.roster.filter(r => r.tag !== tag);
-                localStorage.setItem('pes_roster', JSON.stringify(window.appData.roster));
-                renderRosterTable();
-            }
-        }
-
-        function restoreSampleRoster() {
-            if (confirm("Reset roster to default Petersburg Elementary sample students?")) {
-                localStorage.removeItem('pes_roster');
-                location.reload();
-            }
-        }
-
-        function updateSyncRoomCode() {
-            const code = document.getElementById('sync-room-id').value.trim().toUpperCase();
-            if (code) {
-                localStorage.setItem('pes_sync_room_id', code);
-                alert(`Sync code saved as: ${code}. Reloading app...`);
-                location.reload();
-            }
-        }
-
-        function updateBadges() {
-            document.getElementById('queue-badge').textContent = window.appData.queue.length;
-            document.getElementById('history-badge').textContent = window.appData.history.length;
-        }
-
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {});
-            } else {
-                if (document.exitFullscreen) document.exitFullscreen();
-            }
-        }
-    </script>
-</body>
-</html>
+    <!-- iOS / PWA Mobile Enhancements -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Car Line">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon
