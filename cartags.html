@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petersburg Elementary - Car Line Dismissal System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* Print Styles for Car Hangtags */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .tag-page {
+                page-break-after: always;
+                box-shadow: none !important;
+                border: 4px solid #000 !important;
+                margin: 0 !important;
+                height: 98vh !important;
+                padding: 2rem !important;
+            }
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Pulse effect for newly added cones */
+        @keyframes highlightCone {
+            0% { transform: scale(0.98); opacity: 0.7; }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .cone-card-new {
+            animation: highlightCone 0.4s ease-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-indigo-900 text-white shadow-lg no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2.5 rounded-xl text-yellow-300 shadow-inner">
+                    <i class="fa-solid font-black fa-car-side text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight leading-none text-white">Petersburg Elementary</h1>
+                    <p class="text-xs text-indigo-200 mt-1 font-medium">Car Line Dismissal Manager & Tag Generator</p>
+                </div>
+            </div>
+
+            <!-- Main Tab Navigation -->
+            <nav class="flex flex-wrap gap-1 bg-indigo-950/60 p-1 rounded-xl border border-indigo-700/50">
+                <button onclick="switchTab('caller')" id="tab-caller" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all bg-indigo-600 text-white shadow">
+                    <i class="fa-solid fa-walkie-talkie"></i> Caller Mode
+                </button>
+                <button onclick="switchTab('projector')" id="tab-projector" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all text-indigo-200 hover:text-white">
+                    <i class="fa-solid fa-tv"></i> Cafeteria View
+                </button>
+                <button onclick="switchTab('roster')" id="tab-roster" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all text-indigo-200 hover:text-white">
+                    <i class="fa-solid fa-users-viewfinder"></i> Roster & Import
+                </button>
+                <button onclick="switchTab('tags')" id="tab-tags" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all text-indigo-200 hover:text-white">
+                    <i class="fa-solid fa-id-card"></i> Print Hangtags
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Notification / Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 no-print pointer-events-none"></div>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 no-print">
+
+        <!-- VIEW 1: CALLER MODE (OUTDOOR / DISPATCH) -->
+        <section id="view-caller" class="space-y-6">
+            <!-- Stats & Quick Actions Bar -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">In Active Queue</p>
+                        <p id="stat-active-count" class="text-2xl font-black text-indigo-600 mt-0.5">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-cars"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Dismissed Today</p>
+                        <p id="stat-dismissed-count" class="text-2xl font-black text-emerald-600 mt-0.5">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Families</p>
+                        <p id="stat-total-families" class="text-2xl font-black text-slate-700 mt-0.5">0</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-house-user"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Batch</p>
+                        <p id="stat-current-batch" class="text-2xl font-black text-amber-600 mt-0.5">Batch #1</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Pad & Search Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Tag Call Input -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-bullhorn text-indigo-600"></i> Call Vehicle Tag
+                        </h2>
+                        <p class="text-xs text-slate-500 mb-4">Type the car tag # or student last name to add to the line.</p>
+
+                        <!-- Input with Quick Search -->
+                        <div class="relative mb-4">
+                            <input type="text" id="tag-input" placeholder="Enter Tag # (e.g. 101) or Name..." 
+                                class="w-full pl-4 pr-12 py-3 text-xl font-bold bg-slate-50 border-2 border-indigo-200 rounded-xl focus:border-indigo-600 focus:bg-white focus:outline-none transition-all uppercase"
+                                onkeyup="handleCallerInput(event)" oninput="filterSearchResults(this.value)">
+                            <button onclick="callCurrentInput()" class="absolute right-2 top-2 bottom-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg font-bold transition-all shadow">
+                                Add
+                            </button>
+                        </div>
+
+                        <!-- Instant Auto-Suggest Results -->
+                        <div id="search-results-dropdown" class="hidden bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto mb-4 divide-y divide-slate-100">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Quick NumPad for Fast Mobile Tapping -->
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Quick Keypad</p>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <button onclick="appendNum('1')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">1</button>
+                            <button onclick="appendNum('2')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">2</button>
+                            <button onclick="appendNum('3')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">3</button>
+                            <button onclick="appendNum('4')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">4</button>
+                            <button onclick="appendNum('5')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">5</button>
+                            <button onclick="appendNum('6')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">6</button>
+                            <button onclick="appendNum('7')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">7</button>
+                            <button onclick="appendNum('8')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">8</button>
+                            <button onclick="appendNum('9')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">9</button>
+                            <button onclick="clearNumInput()" class="py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl font-bold text-sm shadow-sm">CLEAR</button>
+                            <button onclick="appendNum('0')" class="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl font-black text-slate-700 text-lg shadow-sm">0</button>
+                            <button onclick="callCurrentInput()" class="py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-black text-sm shadow-sm">CALL</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active 5-Cone Batch Loading Zone (Cones 1 to 5) -->
+                <div class="lg:col-span-2 bg-slate-900 text-white p-6 rounded-2xl shadow-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 class="text-xl font-black text-amber-400 flex items-center gap-2">
+                                    <i class="fa-solid fa-traffic-cone text-amber-400"></i> Outdoor Loading Zone (Cones 1–5)
+                                </h2>
+                                <p class="text-xs text-slate-400">Current batch of 5 vehicles parked at loading cones.</p>
+                            </div>
+                            <button onclick="dismissCurrentBatch()" class="bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 px-4 py-2.5 rounded-xl font-black text-sm shadow-lg flex items-center gap-2 transition-all">
+                                Release Batch 5 <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+
+                        <!-- Cone Cards Grid -->
+                        <div id="cone-grid" class="grid grid-cols-1 sm:grid-cols-5 gap-3 my-2">
+                            <!-- Cones 1 to 5 rendered via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Upcoming Queue Stream -->
+                    <div class="mt-6 pt-4 border-t border-slate-800">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Up Next in Line (Waiting for Open Cone)</span>
+                            <span id="waiting-queue-count" class="text-xs font-bold text-indigo-400">0 cars waiting</span>
+                        </div>
+                        <div id="upcoming-queue-list" class="flex gap-2 overflow-x-auto pb-2 min-h-[48px] items-center">
+                            <!-- Populated with upcoming tag chips -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 2: CAFETERIA PROJECTOR VIEW (BIG TEXT & HIGH VISIBILITY) -->
+        <section id="view-projector" class="hidden space-y-6">
+            <!-- Fullscreen Header Banner -->
+            <div class="bg-indigo-950 border-2 border-indigo-800 text-white p-6 rounded-3xl shadow-2xl flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-amber-400 rounded-2xl flex items-center justify-center text-slate-950 font-black text-3xl shadow-lg">
+                        <i class="fa-solid fa-car-side"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-3xl font-black text-white tracking-tight">Car Line Student Calling</h2>
+                        <p class="text-indigo-200 text-lg font-medium">Find your Tag # or Name and go immediately to your Cone #!</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleAudioChime()" id="chime-toggle-btn" class="bg-indigo-800 hover:bg-indigo-700 text-indigo-100 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 border border-indigo-600">
+                        <i class="fa-solid fa-volume-high"></i> Sound Alert: ON
+                    </button>
+                    <div id="live-clock" class="text-2xl font-black bg-indigo-900/80 px-4 py-2 rounded-xl text-amber-300 border border-indigo-700">
+                        --:-- PM
+                    </div>
+                </div>
+            </div>
+
+            <!-- Big Cone Grid for Cafeteria Projection -->
+            <div id="projector-cone-grid" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <!-- Cones 1 to 5 dynamically loaded with huge fonts -->
+            </div>
+
+            <!-- Up Next Line for Students to Prepare -->
+            <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-md">
+                <h3 class="text-xl font-black text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-clock text-amber-500"></i> Get Ready - Coming Up Next in Line
+                </h3>
+                <div id="projector-upcoming-list" class="flex flex-wrap gap-3">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 3: ROSTER & CSV IMPORT -->
+        <section id="view-roster" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800">Student & Carpool Master Directory</h2>
+                        <p class="text-sm text-slate-500">Assign students with different last names to the same Tag Number for carpools or blended families.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="loadSampleData()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Load 100 Sample Students
+                        </button>
+                        <button onclick="openAddModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow transition-all">
+                            <i class="fa-solid fa-plus"></i> Add Student/Carpool
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CSV File Upload Dropzone -->
+                <div class="mb-6 p-6 border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/50 rounded-2xl text-center transition-all">
+                    <i class="fa-solid fa-file-csv text-4xl text-indigo-500 mb-2"></i>
+                    <h3 class="text-base font-bold text-slate-800">Upload Student CSV Roster</h3>
+                    <p class="text-xs text-slate-500 max-w-md mx-auto mb-3">Upload your spreadsheet with columns: <b>TagNumber, StudentFirstName, StudentLastName, Grade, Teacher</b></p>
+                    <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+                    <button onclick="document.getElementById('csv-file-input').click()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold px-4 py-2 rounded-xl text-sm shadow-sm transition-all">
+                        Select CSV File
+                    </button>
+                </div>
+
+                <!-- Search & Filters -->
+                <div class="flex flex-col sm:flex-row justify-between items-center gap-3 mb-4">
+                    <div class="relative w-full sm:w-80">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                        <input type="text" id="roster-search" placeholder="Search by name, tag #, grade..." 
+                            class="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                            oninput="renderRosterTable()">
+                    </div>
+                    <button onclick="clearAllData()" class="text-xs text-rose-600 hover:text-rose-800 font-bold underline">
+                        Clear All Roster Data
+                    </button>
+                </div>
+
+                <!-- Roster Table -->
+                <div class="overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-wider border-b border-slate-200">
+                                <th class="p-3">Tag #</th>
+                                <th class="p-3">Student Name(s)</th>
+                                <th class="p-3">Grade & Teacher</th>
+                                <th class="p-3">Carpool / Family Grouping</th>
+                                <th class="p-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roster-table-body" class="divide-y divide-slate-200 text-sm bg-white">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 4: PRINTABLE HANGTAG GENERATOR -->
+        <section id="view-tags" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800">Print Rearview Mirror Hangtags</h2>
+                        <p class="text-sm text-slate-500">Print clean, high-visibility 8.5x11 dashboard/mirror tags for every carpool group.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="printHangtags()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-lg transition-all">
+                            <i class="fa-solid fa-print"></i> Print All Hangtags
+                        </button>
+                        <button onclick="openPrintWindow()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow transition-all">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Printable Window
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Grid for On-Screen Review -->
+                <div id="hangtags-preview-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Dynamic Hangtag Cards -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- PRINT CONTAINER (ONLY VISIBLE ON WINDOW.PRINT) -->
+    <div id="print-tags-container" class="hidden print-only">
+        <!-- Generates full-page printable tags -->
+    </div>
+
+    <!-- Modal for Adding/Editing Student -->
+    <div id="add-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 class="text-xl font-black text-slate-800" id="modal-title">Add Student / Carpool</h3>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Family Car Tag Number *</label>
+                    <input type="number" id="modal-tag" placeholder="e.g. 101" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold focus:border-indigo-600 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Student First Name *</label>
+                    <input type="text" id="modal-first" placeholder="e.g. Sarah" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:border-indigo-600 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Student Last Name *</label>
+                    <input type="text" id="modal-last" placeholder="e.g. Smith" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:border-indigo-600 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Grade</label>
+                        <input type="text" id="modal-grade" placeholder="e.g. K, 2nd, 5th" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:border-indigo-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teacher</label>
+                        <input type="text" id="modal-teacher" placeholder="e.g. Mrs. Davis" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:border-indigo-600 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeAddModal()" class="px-4 py-2 rounded-xl text-slate-600 font-bold text-sm hover:bg-slate-100">Cancel</button>
+                <button onclick="saveStudentModal()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow">Save Student</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CORE APPLICATION STATE
+        let students = JSON.parse(localStorage.getItem('petersburg_students') || '[]');
+        let activeQueue = JSON.parse(localStorage.getItem('petersburg_queue') || '[]');
+        let currentBatch = JSON.parse(localStorage.getItem('petersburg_batch') || '[null, null, null, null, null]');
+        let dismissedTodayCount = parseInt(localStorage.getItem('petersburg_dismissed_count') || '0');
+        let soundEnabled = true;
+        let editingStudentId = null;
+
+        // Initialize App on Load
+        window.onload = function() {
+            if (students.length === 0) {
+                loadSampleData(false); // Silent load initial mock data if empty
+            } else {
+                updateAllViews();
+            }
+
+            // Start live clock for cafeteria projector mode
+            setInterval(updateClock, 1000);
+            updateClock();
+        };
+
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            ['caller', 'projector', 'roster', 'tags'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                const btn = document.getElementById(`tab-${t}`);
+                btn.classList.remove('bg-indigo-600', 'text-white', 'shadow');
+                btn.classList.add('text-indigo-200');
+            });
+
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabName}`);
+            activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow');
+            activeBtn.classList.remove('text-indigo-200');
+
+            updateAllViews();
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const clockEl = document.getElementById('live-clock');
+            if (clockEl) {
+                clockEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }
+
+        // CALLER & QUEUE LOGIC
+        function handleCallerInput(e) {
+            if (e.key === 'Enter') {
+                callCurrentInput();
+            }
+        }
+
+        function appendNum(num) {
+            const input = document.getElementById('tag-input');
+            input.value += num;
+            filterSearchResults(input.value);
+        }
+
+        function clearNumInput() {
+            const input = document.getElementById('tag-input');
+            input.value = '';
+            document.getElementById('search-results-dropdown').classList.add('hidden');
+        }
+
+        function filterSearchResults(query) {
+            const dropdown = document.getElementById('search-results-dropdown');
+            if (!query.trim()) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            const cleanQuery = query.trim().toLowerCase();
+            const matchingFamilies = getGroupedFamilies().filter(fam => 
+                fam.tag.toString().includes(cleanQuery) ||
+                fam.students.some(s => s.lastName.toLowerCase().includes(cleanQuery) || s.firstName.toLowerCase().includes(cleanQuery))
+            );
+
+            if (matchingFamilies.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-xs text-slate-400 italic text-center">No tag or student found</div>`;
+            } else {
+                dropdown.innerHTML = matchingFamilies.slice(0, 5).map(fam => `
+                    <div onclick="selectSearchResult('${fam.tag}')" class="p-2.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center text-left">
+                        <div>
+                            <span class="font-black text-indigo-600 text-sm">Tag #${fam.tag}</span>
+                            <p class="text-xs text-slate-700 font-semibold">${fam.students.map(s => `${s.firstName} ${s.lastName}`).join(', ')}</p>
+                        </div>
+                        <span class="text-xs bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded">Select</span>
+                    </div>
+                `).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }
+
+        function selectSearchResult(tag) {
+            document.getElementById('tag-input').value = tag;
+            document.getElementById('search-results-dropdown').classList.add('hidden');
+            callCurrentInput();
+        }
+
+        function callCurrentInput() {
+            const input = document.getElementById('tag-input');
+            const val = input.value.trim();
+            if (!val) return;
+
+            // Resolve tag number
+            let targetTag = val;
+            const grouped = getGroupedFamilies();
+            const foundFam = grouped.find(f => f.tag.toString() === val || f.students.some(s => s.lastName.toLowerCase() === val.toLowerCase()));
+
+            if (foundFam) {
+                targetTag = foundFam.tag.toString();
+            }
+
+            // Verify if tag exists in roster
+            const tagStudents = students.filter(s => s.tag.toString() === targetTag);
+            if (tagStudents.length === 0) {
+                showToast(`Tag #${targetTag} is not in your student roster!`, 'error');
+                return;
+            }
+
+            // Check if already in active queue or current batch
+            if (activeQueue.includes(targetTag) || currentBatch.some(b => b && b.tag === targetTag)) {
+                showToast(`Tag #${targetTag} is already in line or active cone!`, 'warning');
+                clearNumInput();
+                return;
+            }
+
+            // Add to active queue or fill empty cone
+            addToLineQueue(targetTag);
+            clearNumInput();
+            playChime();
+            showToast(`Called Tag #${targetTag} to Car Line!`, 'success');
+        }
+
+        function addToLineQueue(tagNumber) {
+            // Try filling first empty cone spot (0-4)
+            let filledIndex = -1;
+            for (let i = 0; i < 5; i++) {
+                if (currentBatch[i] === null) {
+                    currentBatch[i] = {
+                        tag: tagNumber,
+                        timeCalled: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    };
+                    filledIndex = i;
+                    break;
+                }
+            }
+
+            if (filledIndex === -1) {
+                // All 5 cones are full, push to waiting queue
+                activeQueue.push(tagNumber);
+            }
+
+            saveState();
+            updateAllViews();
+        }
+
+        function dismissCurrentBatch() {
+            let loadedInThisBatch = 0;
+            for (let i = 0; i < 5; i++) {
+                if (currentBatch[i] !== null) {
+                    loadedInThisBatch++;
+                    currentBatch[i] = null;
+                }
+            }
+
+            if (loadedInThisBatch === 0) {
+                showToast('No vehicles currently loaded at Cones 1–5.', 'info');
+                return;
+            }
+
+            dismissedTodayCount += loadedInThisBatch;
+
+            // Pull next cars from waiting queue into empty cones
+            for (let i = 0; i < 5; i++) {
+                if (activeQueue.length > 0) {
+                    const nextTag = activeQueue.shift();
+                    currentBatch[i] = {
+                        tag: nextTag,
+                        timeCalled: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    };
+                }
+            }
+
+            saveState();
+            updateAllViews();
+            showToast(`Batch released! Loaded ${loadedInThisBatch} car(s).`, 'success');
+        }
+
+        function removeFromCone(coneIndex) {
+            currentBatch[coneIndex] = null;
+            // Refill from queue if available
+            if (activeQueue.length > 0) {
+                const nextTag = activeQueue.shift();
+                currentBatch[coneIndex] = {
+                    tag: nextTag,
+                    timeCalled: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+            }
+            saveState();
+            updateAllViews();
+        }
+
+        function removeFromQueue(tag) {
+            activeQueue = activeQueue.filter(t => t !== tag);
+            saveState();
+            updateAllViews();
+        }
+
+        function toggleAudioChime() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('chime-toggle-btn');
+            btn.innerHTML = soundEnabled ? '<i class="fa-solid fa-volume-high"></i> Sound Alert: ON' : '<i class="fa-solid fa-volume-xmark"></i> Sound Alert: OFF';
+            btn.classList.toggle('bg-indigo-800', soundEnabled);
+            btn.classList.toggle('bg-slate-700', !soundEnabled);
+        }
+
+        function playChime() {
+            if (!soundEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+                osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.5);
+            } catch(e) {}
+        }
+
+        // VIEW UPDATERS
+        function updateAllViews() {
+            renderCallerCones();
+            renderCallerQueue();
+            renderProjectorView();
+            renderRosterTable();
+            renderHangtagsPreview();
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-active-count').innerText = activeQueue.length + currentBatch.filter(b => b !== null).length;
+            document.getElementById('stat-dismissed-count').innerText = dismissedTodayCount;
+            document.getElementById('stat-total-families').innerText = getGroupedFamilies().length;
+        }
+
+        function renderCallerCones() {
+            const grid = document.getElementById('cone-grid');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const item = currentBatch[i];
+                if (item) {
+                    const famStudents = students.filter(s => s.tag.toString() === item.tag.toString());
+                    grid.innerHTML += `
+                        <div class="bg-indigo-900 border-2 border-amber-400 rounded-xl p-3 flex flex-col justify-between cone-card-new relative shadow-lg">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-xs font-black bg-amber-400 text-slate-950 px-2 py-0.5 rounded uppercase">Cone ${i+1}</span>
+                                    <button onclick="removeFromCone(${i})" class="text-slate-400 hover:text-rose-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <p class="text-2xl font-black text-white">#${item.tag}</p>
+                                <div class="mt-1 space-y-0.5">
+                                    ${famStudents.map(s => `<p class="text-xs text-indigo-100 font-bold truncate">• ${s.firstName} ${s.lastName} <span class="text-amber-300 font-normal">(${s.grade})</span></p>`).join('')}
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-indigo-300 mt-2 font-mono">${item.timeCalled}</p>
+                        </div>
+                    `;
+                } else {
+                    grid.innerHTML += `
+                        <div class="bg-slate-800/50 border-2 border-dashed border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center min-h-[120px] text-center">
+                            <span class="text-xs font-bold text-slate-500 uppercase">Cone ${i+1}</span>
+                            <span class="text-xs text-slate-600 mt-1">Empty</span>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function renderCallerQueue() {
+            const container = document.getElementById('upcoming-queue-list');
+            const countEl = document.getElementById('waiting-queue-count');
+            if (!container) return;
+
+            countEl.innerText = `${activeQueue.length} car(s) waiting`;
+
+            if (activeQueue.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-500 italic">No vehicles waiting behind Cones 1–5.</span>`;
+                return;
+            }
+
+            container.innerHTML = activeQueue.map((tag, idx) => `
+                <div class="bg-slate-800 border border-slate-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 flex-shrink-0">
+                    <span class="text-xs font-bold text-amber-400">#${idx + 6}</span>
+                    <span class="font-black text-sm">Tag #${tag}</span>
+                    <button onclick="removeFromQueue('${tag}')" class="text-slate-500 hover:text-rose-400 text-xs ml-1"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function renderProjectorView() {
+            const grid = document.getElementById('projector-cone-grid');
+            const upcomingList = document.getElementById('projector-upcoming-list');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const item = currentBatch[i];
+                if (item) {
+                    const famStudents = students.filter(s => s.tag.toString() === item.tag.toString());
+                    grid.innerHTML += `
+                        <div class="bg-indigo-900 border-4 border-amber-400 rounded-3xl p-5 text-white shadow-2xl flex flex-col justify-between min-h-[220px]">
+                            <div>
+                                <div class="bg-amber-400 text-slate-950 font-black text-lg px-3 py-1 rounded-xl inline-block uppercase mb-2">
+                                    CONE ${i+1}
+                                </div>
+                                <div class="text-4xl font-black text-amber-300 mb-2">#${item.tag}</div>
+                                <div class="space-y-1.5">
+                                    ${famStudents.map(s => `
+                                        <div class="bg-indigo-800/80 p-2 rounded-xl border border-indigo-700">
+                                            <p class="text-lg font-black leading-tight text-white">${s.firstName} ${s.lastName}</p>
+                                            <p class="text-xs font-bold text-amber-200">Grade: ${s.grade} | Teacher: ${s.teacher || 'N/A'}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    grid.innerHTML += `
+                        <div class="bg-slate-100 border-4 border-dashed border-slate-300 rounded-3xl p-5 flex flex-col items-center justify-center min-h-[220px] text-slate-400">
+                            <span class="text-xl font-black uppercase tracking-wider text-slate-400">CONE ${i+1}</span>
+                            <p class="text-sm font-bold text-slate-400 mt-1">OPEN / READY</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Up Next List
+            if (activeQueue.length === 0) {
+                upcomingList.innerHTML = `<p class="text-slate-400 text-sm italic">Queue is clear.</p>`;
+            } else {
+                upcomingList.innerHTML = activeQueue.map(tag => {
+                    const famStudents = students.filter(s => s.tag.toString() === tag.toString());
+                    const names = famStudents.map(s => `${s.firstName} ${s.lastName}`).join(', ');
+                    return `
+                        <div class="bg-slate-100 border border-slate-300 rounded-2xl px-4 py-2 flex items-center gap-3 shadow-sm">
+                            <span class="bg-slate-800 text-amber-300 text-base font-black px-2.5 py-1 rounded-xl">#${tag}</span>
+                            <span class="font-bold text-slate-800 text-base">${names}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // ROSTER MANAGEMENT FUNCTIONS
+        function getGroupedFamilies() {
+            const map = {};
+            students.forEach(s => {
+                if (!map[s.tag]) map[s.tag] = [];
+                map[s.tag].push(s);
+            });
+            return Object.keys(map).map(tag => ({
+                tag: tag,
+                students: map[tag]
+            })).sort((a,b) => parseInt(a.tag) - parseInt(b.tag));
+        }
+
+        function renderRosterTable() {
+            const tbody = document.getElementById('roster-table-body');
+            const query = (document.getElementById('roster-search')?.value || '').toLowerCase();
+            if (!tbody) return;
+
+            const filtered = students.filter(s => 
+                s.tag.toString().includes(query) ||
+                s.firstName.toLowerCase().includes(query) ||
+                s.lastName.toLowerCase().includes(query) ||
+                s.grade.toLowerCase().includes(query) ||
+                (s.teacher && s.teacher.toLowerCase().includes(query))
+            );
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400 italic">No students found in directory.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(s => `
+                <tr class="hover:bg-slate-50 transition-all">
+                    <td class="p-3 font-black text-indigo-600 text-base">#${s.tag}</td>
+                    <td class="p-3 font-bold text-slate-800">${s.firstName} ${s.lastName}</td>
+                    <td class="p-3 text-slate-600 font-medium">${s.grade} ${s.teacher ? `(${s.teacher})` : ''}</td>
+                    <td class="p-3 text-xs text-slate-500">
+                        ${students.filter(other => other.tag === s.tag && other.id !== s.id).map(o => o.firstName + ' ' + o.lastName).join(', ') || '<span class="text-slate-300">Single Rider</span>'}
+                    </td>
+                    <td class="p-3 text-right space-x-2">
+                        <button onclick="editStudent('${s.id}')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg font-bold"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteStudent('${s.id}')" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1 rounded-lg font-bold"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openAddModal() {
+            editingStudentId = null;
+            document.getElementById('modal-title').innerText = 'Add New Student / Carpool';
+            document.getElementById('modal-tag').value = '';
+            document.getElementById('modal-first').value = '';
+            document.getElementById('modal-last').value = '';
+            document.getElementById('modal-grade').value = '';
+            document.getElementById('modal-teacher').value = '';
+            document.getElementById('add-modal').classList.remove('hidden');
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.add('hidden');
+        }
+
+        function saveStudentModal() {
+            const tag = document.getElementById('modal-tag').value.trim();
+            const first = document.getElementById('modal-first').value.trim();
+            const last = document.getElementById('modal-last').value.trim();
+            const grade = document.getElementById('modal-grade').value.trim();
+            const teacher = document.getElementById('modal-teacher').value.trim();
+
+            if (!tag || !first || !last) {
+                showToast('Tag #, First Name, and Last Name are required!', 'error');
+                return;
+            }
+
+            if (editingStudentId) {
+                const idx = students.findIndex(s => s.id === editingStudentId);
+                if (idx !== -1) {
+                    students[idx] = { id: editingStudentId, tag, firstName: first, lastName: last, grade, teacher };
+                }
+            } else {
+                students.push({
+                    id: 'std_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                    tag, firstName: first, lastName: last, grade: grade || 'K', teacher
+                });
+            }
+
+            saveState();
+            closeAddModal();
+            updateAllViews();
+            showToast('Student saved successfully!', 'success');
+        }
+
+        function editStudent(id) {
+            const student = students.find(s => s.id === id);
+            if (!student) return;
+
+            editingStudentId = id;
+            document.getElementById('modal-title').innerText = 'Edit Student';
+            document.getElementById('modal-tag').value = student.tag;
+            document.getElementById('modal-first').value = student.firstName;
+            document.getElementById('modal-last').value = student.lastName;
+            document.getElementById('modal-grade').value = student.grade;
+            document.getElementById('modal-teacher').value = student.teacher || '';
+            document.getElementById('add-modal').classList.remove('hidden');
+        }
+
+        function deleteStudent(id) {
+            students = students.filter(s => s.id !== id);
+            saveState();
+            updateAllViews();
+            showToast('Student deleted.', 'info');
+        }
+
+        function clearAllData() {
+            if (confirm("Are you sure you want to clear all student roster data and active line queues?")) {
+                students = [];
+                activeQueue = [];
+                currentBatch = [null, null, null, null, null];
+                dismissedTodayCount = 0;
+                saveState();
+                updateAllViews();
+                showToast('All roster data cleared.', 'info');
+            }
+        }
+
+        // HANGTAG PREVIEW & PRINTING
+        function renderHangtagsPreview(singleTagFilter = null) {
+            const container = document.getElementById('hangtags-preview-container');
+            const printContainer = document.getElementById('print-tags-container');
+            let families = getGroupedFamilies();
+
+            if (singleTagFilter) {
+                families = families.filter(f => f.tag.toString() === singleTagFilter.toString());
+            }
+
+            if (!container) return;
+
+            if (families.length === 0) {
+                container.innerHTML = `<div class="col-span-2 text-center p-8 text-slate-400 italic">No family car tags available. Add or import students first!</div>`;
+                printContainer.innerHTML = '';
+                return;
+            }
+
+            // On-screen preview HTML
+            container.innerHTML = families.map(fam => `
+                <div class="border-4 border-slate-900 rounded-3xl p-6 bg-white shadow-md text-center flex flex-col justify-between min-h-[320px] relative">
+                    <div class="flex justify-between items-center no-print">
+                        <span class="text-xs font-bold text-slate-400">Tag Preview</span>
+                        <button onclick="printHangtags('${fam.tag}')" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-bold border border-indigo-200 flex items-center gap-1">
+                            <i class="fa-solid fa-print"></i> Print Tag #${fam.tag}
+                        </button>
+                    </div>
+                    <!-- Cutout hook circle representation -->
+                    <div class="w-12 h-12 border-2 border-slate-300 rounded-full mx-auto my-1 flex items-center justify-center text-[10px] text-slate-400 font-bold">
+                        HOOK
+                    </div>
+                    <div>
+                        <p class="text-xs font-black uppercase tracking-widest text-indigo-600 mb-1">Petersburg Elementary Car Line</p>
+                        <h2 class="text-6xl font-black text-slate-950 my-2">#${fam.tag}</h2>
+                        <div class="border-t-2 border-b-2 border-slate-200 py-3 my-2 space-y-1">
+                            ${fam.students.map(s => `<p class="text-lg font-black text-slate-800">${s.firstName} ${s.lastName} <span class="text-xs font-semibold text-slate-500">(${s.grade})</span></p>`).join('')}
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Display on Rearview Mirror During Dismissal</p>
+                </div>
+            `).join('');
+
+            // Clean 1-Tag-Per-Page Printable HTML
+            printContainer.innerHTML = families.map(fam => `
+                <div class="tag-page p-10 text-center flex flex-col justify-between items-center bg-white">
+                    <div class="w-24 h-24 border-4 border-black rounded-full mx-auto mb-4 flex items-center justify-center text-xs font-bold uppercase">
+                        Mirror Hook Cutout
+                    </div>
+                    <div class="w-full">
+                        <p class="text-2xl font-black uppercase tracking-widest mb-2">Petersburg Elementary School</p>
+                        <p class="text-lg font-bold text-slate-600 uppercase mb-4">Official Car Rider Pass</p>
+                        <h1 class="text-[140pt] font-black leading-none my-6">#${fam.tag}</h1>
+                        <div class="border-t-4 border-b-4 border-black py-6 my-6 w-full space-y-2">
+                            ${fam.students.map(s => `<p class="text-3xl font-black">${s.firstName} ${s.lastName} <span class="text-xl font-bold">(${s.grade} Grade)</span></p>`).join('')}
+                        </div>
+                    </div>
+                    <p class="text-sm font-bold uppercase tracking-widest">Keep displayed on rearview mirror until student is loaded</p>
+                </div>
+            `).join('');
+        }
+
+        function printHangtags(singleTag = null) {
+            renderHangtagsPreview(singleTag);
+            
+            // Unhide print container temporarily for window.print
+            const printContainer = document.getElementById('print-tags-container');
+            if (printContainer) printContainer.classList.remove('hidden');
+
+            try {
+                window.print();
+            } catch (err) {
+                console.warn("Direct window.print() failed or blocked, opening print window instead:", err);
+                openPrintWindow(singleTag);
+            } finally {
+                if (printContainer) printContainer.classList.add('hidden');
+            }
+        }
+
+        function openPrintWindow(singleTag = null) {
+            let families = getGroupedFamilies();
+            if (singleTag) {
+                families = families.filter(f => f.tag.toString() === singleTag.toString());
+            }
+
+            if (families.length === 0) {
+                showToast('No family car tags available to print.', 'warning');
+                return;
+            }
+
+            const printWin = window.open('', '_blank');
+            if (!printWin) {
+                showToast('Pop-up window blocked! Please allow pop-ups for this site.', 'error');
+                return;
+            }
+
+            const tagsHtml = families.map(fam => `
+                <div class="tag-page">
+                    <div class="hook-cutout">Cutout Hook</div>
+                    <div style="width: 100%;">
+                        <div class="school-title">Petersburg Elementary School</div>
+                        <div class="subtitle">Official Car Rider Pass</div>
+                        <div class="tag-number">#${fam.tag}</div>
+                        <div class="student-list">
+                            ${fam.students.map(s => `<div class="student-item">${s.firstName} ${s.lastName} <span class="grade-badge">(${s.grade} Grade)</span></div>`).join('')}
+                        </div>
+                    </div>
+                    <div class="footer-text">Display on Rearview Mirror During Dismissal</div>
+                </div>
+            `).join('');
+
+            const docContent = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Print Car Tags - Petersburg Elementary</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
+        .tag-page {
+            page-break-after: always;
+            box-shadow: none;
+            border: 4px solid #000;
+            margin: 20px auto;
+            max-width: 800px;
+            padding: 40px 20px;
+            text-align: center;
+            min-height: 90vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .hook-cutout {
+            width: 90px;
+            height: 90px;
+            border: 4px solid #000;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .school-title { font-size: 26px; font-weight: 900; text-transform: uppercase; margin-bottom: 5px; }
+        .subtitle { font-size: 18px; font-weight: 700; color: #444; text-transform: uppercase; margin-bottom: 15px; }
+        .tag-number { font-size: 130pt; font-weight: 900; line-height: 1; margin: 20px 0; }
+        .student-list { border-top: 4px solid #000; border-bottom: 4px solid #000; padding: 20px 0; margin: 20px 0; width: 100%; }
+        .student-item { font-size: 28px; font-weight: 900; margin: 5px 0; }
+        .grade-badge { font-size: 20px; font-weight: 700; color: #333; }
+        .footer-text { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        @media print {
+            .tag-page { border: 4px solid #000 !important; margin: 0 !important; height: 98vh !important; }
+        }
+    </style>
+</head>
+<body>
+    ${tagsHtml}
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 300);
+        };
+    <\/script>
+</body>
+</html>`;
+
+            printWin.document.open();
+            printWin.document.write(docContent);
+            printWin.document.close();
+        }
+
+        // CSV PARSING & SAMPLE DATA
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const text = evt.target.result;
+                parseCSV(text);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length < 2) {
+                showToast('CSV file appears empty or invalid.', 'error');
+                return;
+            }
+
+            let newStudents = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.replace(/^["']|["']$/g, '').trim());
+                if (cols.length >= 3) {
+                    newStudents.push({
+                        id: 'std_' + Date.now() + '_' + i,
+                        tag: cols[0] || '100',
+                        firstName: cols[1] || 'Student',
+                        lastName: cols[2] || 'Rider',
+                        grade: cols[3] || 'K',
+                        teacher: cols[4] || ''
+                    });
+                }
+            }
+
+            if (newStudents.length > 0) {
+                students = newStudents;
+                saveState();
+                updateAllViews();
+                showToast(`Successfully imported ${newStudents.length} students from CSV!`, 'success');
+            }
+        }
+
+        function loadSampleData(showAlert = true) {
+            const sampleStudents = [];
+            const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin", "Lee"];
+            const firstNames = ["Jackson", "Emma", "Liam", "Olivia", "Noah", "Ava", "Lucas", "Sophia", "Ethan", "Isabella", "Mason", "Mia", "Oliver", "Harper", "Elijah"];
+            const grades = ["K", "1st", "2nd", "3rd", "4th", "5th"];
+            const teachers = ["Mrs. Davis", "Mr. Miller", "Ms. Gable", "Mrs. Vance", "Mr. Henderson"];
+
+            let studentIdCounter = 1;
+
+            // Generate ~50 carpools covering 100 students (including blended families!)
+            for (let tag = 101; tag <= 150; tag++) {
+                // 1 to 3 kids per tag
+                const riderCount = (tag % 3 === 0) ? 2 : ((tag % 5 === 0) ? 3 : 1);
+                
+                for (let k = 0; k < riderCount; k++) {
+                    // Give blended families different last names
+                    const lastName = lastNames[(tag + k) % lastNames.length];
+                    const firstName = firstNames[(studentIdCounter * 3 + k) % firstNames.length];
+                    
+                    sampleStudents.push({
+                        id: 'sample_' + studentIdCounter++,
+                        tag: tag.toString(),
+                        firstName: firstName,
+                        lastName: lastName,
+                        grade: grades[(tag + k) % grades.length],
+                        teacher: teachers[(tag + k) % teachers.length]
+                    });
+                }
+            }
+
+            students = sampleStudents;
+            saveState();
+            updateAllViews();
+            if (showAlert) showToast('Loaded 100 sample students across 50 carpools!', 'success');
+        }
+
+        // LOCAL STORAGE PERSISTENCE
+        function saveState() {
+            localStorage.setItem('petersburg_students', JSON.stringify(students));
+            localStorage.setItem('petersburg_queue', JSON.stringify(activeQueue));
+            localStorage.setItem('petersburg_batch', JSON.stringify(currentBatch));
+            localStorage.setItem('petersburg_dismissed_count', dismissedTodayCount.toString());
+        }
+
+        // TOAST SYSTEM
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const bgColors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-rose-600 text-white',
+                warning: 'bg-amber-500 text-slate-950',
+                info: 'bg-indigo-900 text-white'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `${bgColors[type]} px-4 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-2 transition-all transform translate-y-2 pointer-events-auto`;
+            toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${message}</span>`;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
