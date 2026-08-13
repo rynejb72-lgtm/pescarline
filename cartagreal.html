@@ -37,25 +37,51 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
         
         @media print {
+            @page {
+                size: letter portrait;
+                margin: 0;
+            }
+            html, body {
+                width: 8.5in;
+                height: 11in;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                color: black !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
-            .page-break { page-break-after: always; break-after: page; page-break-inside: avoid; }
+            .page-break {
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
             
-            /* Full Standard Page Sheet Styling (8.5x11 inch fit) */
+            /* Full Standard Letter Sheet Styling (8.5 x 11 inches) */
             .printable-hangtag {
-                width: 100% !important;
-                height: 98vh !important;
-                max-height: 98vh !important;
+                width: 8.5in !important;
+                height: 11in !important;
                 box-sizing: border-box !important;
-                padding: 2rem !important;
+                padding: 0.5in !important;
                 display: flex !important;
                 flex-direction: column !important;
                 justify-content: space-between !important;
-                border: 12px solid #0f172a !important;
-                border-radius: 2rem !important;
-                margin: 0 auto !important;
                 background: white !important;
+                page-break-inside: avoid !important;
+            }
+
+            .printable-card-border {
+                border: 8px solid #0f172a !important;
+                border-radius: 1.5rem !important;
+                padding: 1.75rem !important;
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                box-sizing: border-box !important;
             }
         }
         .print-only { display: none; }
@@ -105,6 +131,9 @@
                     <button onclick="toggleAudioChime()" id="audio-toggle-btn" class="p-2 rounded-xl bg-slate-800 text-amber-400 hover:bg-slate-700 transition-all border border-slate-700" title="Toggle Chime Sound">
                         <i class="fa-solid fa-volume-high text-sm"></i>
                     </button>
+                    <button onclick="refreshSync()" id="refresh-sync-btn" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5" title="Request the latest dismissal state or reconnect sync">
+                        <i class="fa-solid fa-rotate text-emerald-400"></i> Refresh Sync
+                    </button>
                     <button onclick="openSyncModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5">
                         <i class="fa-solid fa-wifi text-indigo-400"></i> Sync Room
                     </button>
@@ -121,6 +150,9 @@
             <button onclick="switchTab('hangtags')" id="mobile-tab-hangtags" class="px-3 py-1.5 rounded-lg font-bold shrink-0 text-slate-300">Print Tags</button>
         </div>
     </header>
+
+    <!-- Caller feedback (used for duplicate-tag warnings) -->
+    <div id="dispatch-feedback" role="alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-md w-[calc(100%-2rem)] px-4 py-3 rounded-xl shadow-xl border text-sm font-bold"></div>
 
     <!-- Main Content Area -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 no-print">
@@ -416,7 +448,7 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <button onclick="printAllHangtags()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
-                            <i class="fa-solid fa-print"></i> Print All Tags (<span id="print-total-count">0</span>)
+                            <i class="fa-solid fa-print"></i> Print All Filtered Tags (<span id="print-total-count">0</span>)
                         </button>
                     </div>
                 </div>
@@ -460,765 +492,861 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tag Number</label>
                     <div class="flex gap-2">
-                        <input type="text" id="adjust-modal-tag" placeholder="Tag #" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-black text-lg focus:border-indigo-600 outline-none uppercase">
-                        <button onclick="applyTagChangeInModal()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow shrink-0">Apply Tag</button>
+                        <input type="text" id="adjust-modal-tag" placeholder="Tag #" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-extrabold uppercase text-sm focus:outline-none focus:border-indigo-600">
+                        <button onclick="lookupTagForAdjustModal()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition-all">Lookup</button>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Assigned Cone Slot</label>
-                    <select id="adjust-modal-cone-select" onchange="changeConeSlotInModal(parseInt(this.value))" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm focus:border-indigo-600 outline-none bg-slate-50">
-                        <option value="0">Cone 1</option>
-                        <option value="1">Cone 2</option>
-                        <option value="2">Cone 3</option>
-                        <option value="3">Cone 4</option>
-                        <option value="4">Cone 5</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Students Included in Pick-up</label>
-                    <div id="adjust-modal-students-list" class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200 max-h-36 overflow-y-auto">
-                        <!-- Student checkboxes rendered via JS -->
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Assigned Roster Students</label>
+                    <div id="adjust-modal-names" class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 min-h-[42px]">
+                        No tag loaded
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200">
-                <button onclick="cancelAndReturnToQueue()" class="py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
-                    <i class="fa-solid fa-rotate-left"></i> Send Back to Queue
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
+                <button onclick="clearSingleConeFromModal()" class="px-3 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs rounded-xl transition-all flex items-center gap-1">
+                    <i class="fa-solid fa-eraser"></i> Clear Cone
                 </button>
-                <button onclick="cancelAndRemoveFromLine()" class="py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
-                    <i class="fa-solid fa-trash-can"></i> Remove Wrong Call
-                </button>
-            </div>
-            
-            <div class="pt-1">
-                <button onclick="saveAdjustConeModal()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow flex items-center justify-center gap-2 transition-all">
-                    <i class="fa-solid fa-check"></i> Save Adjustments
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="closeAdjustConeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">Cancel</button>
+                    <button onclick="saveAdjustConeModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">Save Changes</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal for Adding/Editing Student -->
-    <div id="student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 no-print">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+    <!-- Modal for manually placing a waiting car at a selected cone -->
+    <div id="queue-cone-picker-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="text-lg font-black text-slate-800"><i class="fa-solid fa-traffic-cone text-amber-500 mr-2"></i>Send <span id="queue-picker-tag"></span> to a Cone</h3>
+                <button onclick="closeQueueConePicker()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-500">Choose an open cone. This manual placement is available even while a batch is being released.</p>
+            <div id="queue-cone-picker-options" class="grid grid-cols-5 gap-2"></div>
+            <button onclick="closeQueueConePicker()" class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Modal for Adding / Editing Roster Student -->
+    <div id="student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 pb-3">
                 <h3 id="student-modal-title" class="text-lg font-black text-slate-800">Add Student</h3>
-                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
             </div>
             
-            <form onsubmit="handleSaveStudent(event)" class="space-y-3">
+            <form onsubmit="saveStudentForm(event)" class="space-y-3">
+                <input type="hidden" id="edit-student-index" value="-1">
+                
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tag Number *</label>
-                    <input type="text" id="modal-student-tag" required placeholder="e.g. 101" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-sm focus:border-indigo-600 outline-none uppercase">
+                    <input type="text" id="modal-student-tag" required placeholder="e.g. 101" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold uppercase text-xs focus:outline-none focus:border-indigo-600">
                 </div>
+
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">First Name *</label>
-                        <input type="text" id="modal-student-first" required class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-sm focus:border-indigo-600 outline-none">
+                        <input type="text" id="modal-student-fname" required placeholder="First name" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-xs focus:outline-none focus:border-indigo-600">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Last Name *</label>
-                        <input type="text" id="modal-student-last" required class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-sm focus:border-indigo-600 outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Grade</label>
-                        <input type="text" id="modal-student-grade" placeholder="e.g. 2" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-sm focus:border-indigo-600 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teacher</label>
-                        <input type="text" id="modal-student-teacher" placeholder="e.g. Mrs. Smith" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-sm focus:border-indigo-600 outline-none">
+                        <input type="text" id="modal-student-lname" required placeholder="Last name" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-xs focus:outline-none focus:border-indigo-600">
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                    <button type="button" onclick="closeStudentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">Cancel</button>
-                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow">Save Student</button>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Grade *</label>
+                        <select id="modal-student-grade" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-xs focus:outline-none focus:border-indigo-600">
+                            <option value="K">Kindergarten</option>
+                            <option value="1">1st Grade</option>
+                            <option value="2">2nd Grade</option>
+                            <option value="3">3rd Grade</option>
+                            <option value="4">4th Grade</option>
+                            <option value="5">5th Grade</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teacher Name *</label>
+                        <input type="text" id="modal-student-teacher" required placeholder="e.g. Mrs. Smith" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-xs focus:outline-none focus:border-indigo-600">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeStudentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">Save Student</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal for Sync Settings -->
-    <div id="sync-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 no-print">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+    <!-- Modal for Sync / Multi-device Room Settings -->
+    <div id="sync-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 pb-3">
                 <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
                     <i class="fa-solid fa-wifi text-indigo-600"></i> Multi-Device Sync Room
                 </h3>
-                <button onclick="closeSyncModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+                <button onclick="closeSyncModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
             </div>
             
-            <p class="text-xs text-slate-600 leading-relaxed">
-                Enter a shared Room Code to pair outdoor caller phones with indoor cafeteria display screens in real time over Wi-Fi or Cellular.
-            </p>
+            <p class="text-xs text-slate-500">Devices connected to the same Sync Room code share live state changes across the campus in real-time.</p>
 
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Sync Room Code</label>
-                <div class="flex gap-2">
-                    <input type="text" id="sync-room-input" placeholder="e.g. PETERSBURG-1" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-black text-base focus:border-indigo-600 outline-none uppercase">
-                    <button onclick="connectRoomSync()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow shrink-0">Connect</button>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Sync Room Key</label>
+                    <input type="text" id="sync-room-input" placeholder="e.g. PES-CARLINE-2026" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-black uppercase text-xs tracking-wider focus:outline-none focus:border-indigo-600">
                 </div>
             </div>
 
-            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
-                <span class="font-bold text-slate-800 block mb-1">Current Sync Status:</span>
-                <span id="sync-modal-status" class="font-mono text-indigo-600 font-bold">Connecting...</span>
-            </div>
-
-            <div class="flex justify-end pt-2">
-                <button onclick="closeSyncModal()" class="px-5 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl">Close</button>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button onclick="closeSyncModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">Cancel</button>
+                <button onclick="saveSyncRoomSettings()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition-all">Connect Room</button>
             </div>
         </div>
     </div>
 
-    <!-- Firebase Real-time Multi-device Sync SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'petersburg-carline';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-
-        let db = null;
-        let auth = null;
-        let currentUser = null;
-        let firestoreUnsubscribe = null;
-
-        if (firebaseConfig) {
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                const doAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch(e) {
-                        try { await signInAnonymously(auth); } catch(err){}
-                    }
-                };
-
-                onAuthStateChanged(auth, (user) => {
-                    currentUser = user;
-                    if (user && window.subscribeFirestoreRoom) {
-                        window.subscribeFirestoreRoom();
-                    }
-                });
-
-                doAuth();
-            } catch(e) {
-                console.warn("Firebase initialization skipped:", e);
-            }
-        }
-
-        window.broadcastFirestoreState = async function(payload, isNewCall) {
-            if (!db || !currentUser || !window.appState) return false;
-            try {
-                const roomCode = window.appState.syncRoom || 'PETERSBURG-1';
-                const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode);
-                await setDoc(roomDocRef, {
-                    sender: window.clientId,
-                    isNewCall: isNewCall,
-                    payload: payload,
-                    updatedAt: Date.now()
-                }, { merge: true });
-                return true;
-            } catch(e) {
-                console.error("Firestore broadcast error:", e);
-                return false;
-            }
-        };
-
-        window.subscribeFirestoreRoom = function() {
-            if (!db || !currentUser || !window.appState) return;
-            if (firestoreUnsubscribe) firestoreUnsubscribe();
-
-            const roomCode = window.appState.syncRoom || 'PETERSBURG-1';
-            const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode);
-
-            updateSyncStatusUI('Connected (Cloud Sync)', true);
-
-            firestoreUnsubscribe = onSnapshot(roomDocRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.data();
-                    if (data && data.sender !== window.clientId && data.payload) {
-                        window.applyIncomingState(data.payload, data.isNewCall);
-                    }
-                }
-            }, (err) => {
-                console.warn("Firestore snapshot listener:", err);
-            });
-        };
-    </script>
-
+    <!-- System JavaScript Logic -->
     <script>
-        // Default Demo Data
-        const DEMO_STUDENTS = [
-            { tag: '101', firstName: 'Emma', lastName: 'Johnson', grade: 'K', teacher: 'Mrs. Davis' },
-            { tag: '101', firstName: 'Noah', lastName: 'Johnson', grade: '3', teacher: 'Mr. Wilson' },
-            { tag: '102', firstName: 'Liam', lastName: 'Smith', grade: '1', teacher: 'Ms. Taylor' },
-            { tag: '103', firstName: 'Olivia', lastName: 'Brown', grade: '2', teacher: 'Mrs. Miller' },
-            { tag: '104', firstName: 'Ava', lastName: 'Jones', grade: 'K', teacher: 'Mrs. Davis' },
-            { tag: '105', firstName: 'William', lastName: 'Garcia', grade: '4', teacher: 'Mr. Anderson' },
-            { tag: '106', firstName: 'Sophia', lastName: 'Martinez', grade: '1', teacher: 'Ms. Taylor' },
-            { tag: '107', firstName: 'James', lastName: 'Rodriguez', grade: '5', teacher: 'Mrs. Thomas' },
-            { tag: '108', firstName: 'Isabella', lastName: 'Hernandez', grade: '3', teacher: 'Mr. Wilson' },
-            { tag: '109', firstName: 'Benjamin', lastName: 'Lopez', grade: '2', teacher: 'Mrs. Miller' },
-            { tag: '110', firstName: 'Mia', lastName: 'Gonzales', grade: 'K', teacher: 'Mrs. Davis' }
+        // ================= DEMO INITIAL ROSTER =================
+        const DEFAULT_ROSTER = [
+            { tag: "101", firstName: "Liam", lastName: "Miller", grade: "K", teacher: "Mrs. Davis" },
+            { tag: "101", firstName: "Emma", lastName: "Miller", grade: "3", teacher: "Mr. Wilson" },
+            { tag: "102", firstName: "Noah", lastName: "Smith", grade: "1", teacher: "Ms. Adams" },
+            { tag: "103", firstName: "Olivia", lastName: "Johnson", grade: "2", teacher: "Mrs. Baker" },
+            { tag: "104", firstName: "James", lastName: "Brown", grade: "4", teacher: "Mr. Clark" },
+            { tag: "104", firstName: "Sophia", lastName: "Brown", grade: "1", teacher: "Ms. Adams" },
+            { tag: "105", firstName: "Jackson", lastName: "Williams", grade: "5", teacher: "Mrs. Evans" },
+            { tag: "106", firstName: "Lucas", lastName: "Jones", grade: "K", teacher: "Mrs. Davis" },
+            { tag: "107", firstName: "Mia", lastName: "Garcia", grade: "3", teacher: "Mr. Wilson" },
+            { tag: "108", firstName: "Ethan", lastName: "Martinez", grade: "2", teacher: "Mrs. Baker" },
+            { tag: "109", firstName: "Ava", lastName: "Rodriguez", grade: "4", teacher: "Mr. Clark" },
+            { tag: "110", firstName: "Oliver", lastName: "Hernandez", grade: "5", teacher: "Mrs. Evans" }
         ];
 
-        // Global State Management
-        window.appState = {
-            roster: [],
-            hasCustomRoster: false,
-            cones: [null, null, null, null, null],
-            queue: [],
-            dismissedLog: [],
-            syncRoom: 'PETERSBURG-1',
-            audioEnabled: true,
-            batchReleased: false // Tracks if releasing has begun for the active batch
-        };
-
-        window.clientId = 'carline_' + Math.random().toString(16).substring(2, 10);
+        // ================= GLOBAL APPLICATION STATE =================
+        let roster = [];
+        let cones = [
+            { id: 1, tag: "", students: [], timestamp: "" },
+            { id: 2, tag: "", students: [], timestamp: "" },
+            { id: 3, tag: "", students: [], timestamp: "" },
+            { id: 4, tag: "", students: [], timestamp: "" },
+            { id: 5, tag: "", students: [], timestamp: "" }
+        ];
+        let queue = [];
+        let historyLog = [];
+        let isBatchHold = false;
+        let soundEnabled = true;
+        let syncRoomKey = "PES-DISMISSAL-MAIN";
         let mqttClient = null;
+        let mqttClientId = null;
+        let activeAdjustConeId = null;
+        let activeQueueTag = null;
+
+        // Web Audio API Chime Synth
         let audioCtx = null;
-        let editingStudentIndex = -1;
-        let currentAdjustingConeIndex = -1;
-        let isConnectedViaMQTT = false;
 
         // Initialize Application
         window.addEventListener('DOMContentLoaded', () => {
-            loadLocalStorage();
-            initClock();
+            loadLocalStorageData();
+            initLiveClock();
+            initMQTTConnection();
             renderAllViews();
-            setupTagInputListener();
-            connectRoomSync();
+            
+            // Search input listener
+            document.getElementById('tag-input').addEventListener('input', handleTagSearchInput);
         });
 
-        function saveLocalStorage() {
-            try {
-                localStorage.setItem('petersburg_carline_state', JSON.stringify({
-                    roster: appState.roster,
-                    hasCustomRoster: appState.hasCustomRoster,
-                    cones: appState.cones,
-                    queue: appState.queue,
-                    dismissedLog: appState.dismissedLog,
-                    syncRoom: appState.syncRoom,
-                    audioEnabled: appState.audioEnabled,
-                    batchReleased: appState.batchReleased
-                }));
-            } catch(e) {}
-        }
-
-        function loadLocalStorage() {
-            try {
-                const saved = localStorage.getItem('petersburg_carline_state');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    appState.hasCustomRoster = parsed.hasCustomRoster || false;
-                    appState.roster = (parsed.roster && parsed.roster.length > 0) ? parsed.roster : (appState.hasCustomRoster ? [] : DEMO_STUDENTS);
-                    appState.cones = parsed.cones || [null, null, null, null, null];
-                    appState.queue = parsed.queue || [];
-                    appState.dismissedLog = parsed.dismissedLog || [];
-                    if (parsed.syncRoom) appState.syncRoom = parsed.syncRoom;
-                    if (parsed.audioEnabled !== undefined) appState.audioEnabled = parsed.audioEnabled;
-                    if (parsed.batchReleased !== undefined) appState.batchReleased = parsed.batchReleased;
-                } else {
-                    appState.roster = [...DEMO_STUDENTS];
-                }
-            } catch(e) {
-                appState.roster = [...DEMO_STUDENTS];
-            }
-        }
-
-        function applyIncomingState(payload, isNewCall) {
-            appState.cones = payload.cones;
-            appState.queue = payload.queue;
-            appState.dismissedLog = payload.dismissedLog;
-            if (payload.batchReleased !== undefined) appState.batchReleased = payload.batchReleased;
-            if (payload.hasCustomRoster && payload.roster && payload.roster.length > 0) {
-                appState.roster = payload.roster;
-                appState.hasCustomRoster = true;
-            }
-            renderAllViews();
-            if (isNewCall && appState.audioEnabled) playChimeSound();
-        }
-        window.applyIncomingState = applyIncomingState;
-
-        function broadcastState(isNewCall = false) {
-            saveLocalStorage();
-            const payload = {
-                cones: appState.cones,
-                queue: appState.queue,
-                dismissedLog: appState.dismissedLog,
-                batchReleased: appState.batchReleased,
-                roster: appState.hasCustomRoster ? appState.roster : [],
-                hasCustomRoster: appState.hasCustomRoster
-            };
-
-            // Attempt Firebase Cloud sync first
-            if (window.broadcastFirestoreState) {
-                window.broadcastFirestoreState(payload, isNewCall);
+        // ================= LOCAL STORAGE MANAGEMENT =================
+        function loadLocalStorageData() {
+            const storedRoster = localStorage.getItem('pes_carline_roster');
+            if (storedRoster) {
+                try { roster = JSON.parse(storedRoster); } catch (e) { roster = DEFAULT_ROSTER; }
+            } else {
+                roster = DEFAULT_ROSTER;
+                saveRosterStorage();
             }
 
-            // Also broadcast over MQTT if connected
-            if (mqttClient && isConnectedViaMQTT) {
+            const storedCones = localStorage.getItem('pes_carline_cones');
+            if (storedCones) {
+                try { cones = JSON.parse(storedCones); } catch (e) {}
+            }
+
+            const storedQueue = localStorage.getItem('pes_carline_queue');
+            if (storedQueue) {
+                try { queue = JSON.parse(storedQueue); } catch (e) {}
+            }
+
+            const storedLog = localStorage.getItem('pes_carline_history');
+            if (storedLog) {
+                try { historyLog = JSON.parse(storedLog); } catch (e) {}
+            }
+
+            const storedBatch = localStorage.getItem('pes_carline_batch_hold');
+            if (storedBatch) {
+                isBatchHold = JSON.parse(storedBatch);
+            }
+
+            const storedRoom = localStorage.getItem('pes_carline_sync_room');
+            if (storedRoom) {
+                syncRoomKey = storedRoom;
+            }
+            document.getElementById('sync-room-input').value = syncRoomKey;
+        }
+
+        function saveRosterStorage() {
+            localStorage.setItem('pes_carline_roster', JSON.stringify(roster));
+            updateTeacherDropdown();
+        }
+
+        function saveStateStorageAndSync(publishMQTT = true) {
+            localStorage.setItem('pes_carline_cones', JSON.stringify(cones));
+            localStorage.setItem('pes_carline_queue', JSON.stringify(queue));
+            localStorage.setItem('pes_carline_history', JSON.stringify(historyLog));
+            localStorage.setItem('pes_carline_batch_hold', JSON.stringify(isBatchHold));
+
+            if (publishMQTT && mqttClient && typeof mqttClient.isConnected === 'function' && mqttClient.isConnected()) {
                 try {
-                    const topic = `petersburg_elem_carline/${appState.syncRoom}`;
-                    const message = new Paho.MQTT.Message(JSON.stringify({
-                        type: 'STATE_UPDATE',
-                        sender: clientId,
-                        isNewCall: isNewCall,
-                        payload: payload
-                    }));
-                    message.destinationName = topic;
+                    const payload = JSON.stringify({
+                        cones: cones,
+                        queue: queue,
+                        historyLog: historyLog,
+                        isBatchHold: isBatchHold,
+                        timestamp: Date.now()
+                    });
+                    const message = new Paho.MQTT.Message(payload);
+                    message.destinationName = "pes/carline/" + syncRoomKey;
                     mqttClient.send(message);
-                } catch(e) {}
-            }
-        }
-
-        // Connect Room Sync with SSL & Fallback Brokers
-        function connectRoomSync() {
-            const roomInput = document.getElementById('sync-room-input');
-            if (roomInput && roomInput.value.trim()) {
-                appState.syncRoom = roomInput.value.trim().toUpperCase();
-            }
-
-            // Re-subscribe to Firebase Firestore room
-            if (window.subscribeFirestoreRoom) {
-                window.subscribeFirestoreRoom();
-            }
-
-            // Connect to Secure WebSocket MQTT broker (HiveMQ SSL port 8884 with WSS)
-            connectSecureMQTT('broker.hivemq.com', 8884, '/mqtt', () => {
-                // Secondary fallback if HiveMQ is blocked: EMQX Secure Broker
-                connectSecureMQTT('broker.emqx.io', 8084, '/mqtt', () => {
-                    if (!window.firebaseConnected) {
-                        updateSyncStatusUI('Local Standalone', false);
-                    }
-                });
-            });
-        }
-
-        function connectSecureMQTT(host, port, path, onFailureCallback) {
-            try {
-                if (mqttClient) {
-                    try { mqttClient.disconnect(); } catch(e) {}
+                } catch (err) {
+                    console.warn("MQTT send failed:", err);
                 }
+            }
+        }
 
-                mqttClient = new Paho.MQTT.Client(host, port, path, clientId);
-                
-                mqttClient.onConnectionLost = () => {
-                    isConnectedViaMQTT = false;
-                    if (onFailureCallback) onFailureCallback();
-                };
+        // ================= REAL-TIME MQTT MULTI-DEVICE SYNC =================
+        function initMQTTConnection() {
+            const statusText = document.getElementById('sync-status-text');
+            const statusDot = document.getElementById('sync-status-dot');
 
-                mqttClient.onMessageArrived = (message) => {
-                    try {
-                        const data = JSON.parse(message.payloadString);
-                        if (data.sender !== clientId && data.type === 'STATE_UPDATE') {
-                            applyIncomingState(data.payload, data.isNewCall);
-                        }
-                    } catch(e) {}
-                };
+            if (!statusText || !statusDot) return;
+
+            const clientId = "pes_client_" + Math.random().toString(16).substr(2, 8);
+            mqttClientId = clientId;
+            
+            // Use WSS (Secure WebSockets over SSL port 8884) to comply with browser security policies
+            const useSsl = true;
+            const port = 8884;
+
+            try {
+                mqttClient = new Paho.MQTT.Client("broker.hivemq.com", port, clientId);
+
+                mqttClient.onConnectionLost = onConnectionLost;
+                mqttClient.onMessageArrived = onMessageArrived;
+
+                statusText.textContent = "Connecting " + syncRoomKey + "...";
 
                 mqttClient.connect({
-                    useSSL: true, // MANDATORY for secure HTTPS contexts
-                    timeout: 4,
                     onSuccess: () => {
-                        isConnectedViaMQTT = true;
-                        const topic = `petersburg_elem_carline/${appState.syncRoom}`;
-                        mqttClient.subscribe(topic);
-                        updateSyncStatusUI(`Synced: ${appState.syncRoom} (WSS)`, true);
-                        broadcastState(false);
+                        statusText.textContent = "Synced: " + syncRoomKey;
+                        statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 inline-block";
+                        try {
+                            mqttClient.subscribe("pes/carline/" + syncRoomKey);
+                        } catch (subErr) {
+                            console.warn("MQTT Subscribe error:", subErr);
+                        }
                     },
-                    onFailure: () => {
-                        isConnectedViaMQTT = false;
-                        if (onFailureCallback) onFailureCallback();
-                    }
+                    onFailure: (err) => {
+                        statusText.textContent = "Offline (Local Mode)";
+                        statusDot.className = "w-2 h-2 rounded-full bg-amber-400 inline-block";
+                    },
+                    useSSL: useSsl,
+                    timeout: 5
                 });
-            } catch(e) {
-                isConnectedViaMQTT = false;
-                if (onFailureCallback) onFailureCallback();
+            } catch (err) {
+                console.warn("MQTT WebSocket restricted by browser security policy:", err);
+                statusText.textContent = "Offline (Local Mode)";
+                statusDot.className = "w-2 h-2 rounded-full bg-amber-400 inline-block";
             }
         }
 
-        function updateSyncStatusUI(statusText, isConnected) {
-            const statusTextEl = document.getElementById('sync-status-text');
-            const statusDotEl = document.getElementById('sync-status-dot');
-            const modalStatusEl = document.getElementById('sync-modal-status');
-
-            if (statusTextEl) statusTextEl.innerText = statusText;
-            if (statusDotEl) {
-                statusDotEl.className = isConnected 
-                    ? 'w-2 h-2 rounded-full bg-emerald-400 inline-block' 
-                    : 'w-2 h-2 rounded-full bg-amber-400 inline-block';
-            }
-            if (modalStatusEl) {
-                modalStatusEl.innerText = `${statusText} - Room Code: ${appState.syncRoom}`;
+        function onConnectionLost(responseObject) {
+            const statusText = document.getElementById('sync-status-text');
+            const statusDot = document.getElementById('sync-status-dot');
+            statusText.textContent = "Sync Offline";
+            statusDot.className = "w-2 h-2 rounded-full bg-rose-500 inline-block";
+            if (responseObject.errorCode !== 0) {
+                setTimeout(initMQTTConnection, 5000);
             }
         }
 
-        function getStudentsForTag(tag) {
-            const cleanTag = String(tag).trim().toUpperCase();
-            return appState.roster.filter(s => String(s.tag).trim().toUpperCase() === cleanTag);
+        function onMessageArrived(message) {
+            try {
+                const data = JSON.parse(message.payloadString);
+                if (data.type === 'sync-request') {
+                    // Reply to another device's manual refresh request with this device's state.
+                    if (data.requesterId !== mqttClientId) sendCurrentStateToSyncRoom('sync-response');
+                    return;
+                }
+                if (data.cones && data.queue) {
+                    cones = data.cones;
+                    queue = data.queue;
+                    if (data.historyLog) historyLog = data.historyLog;
+                    if (typeof data.isBatchHold === 'boolean') isBatchHold = data.isBatchHold;
+
+                    saveStateStorageAndSync(false); // save locally without re-broadcasting
+                    renderAllViews();
+                }
+            } catch (e) {
+                console.error("Error processing MQTT sync payload", e);
+            }
         }
 
-        function callTag(tagNumStr) {
-            const tagClean = tagNumStr.trim().toUpperCase();
-            if (!tagClean) return;
+        function sendCurrentStateToSyncRoom(type = 'state-update') {
+            if (!mqttClient || typeof mqttClient.isConnected !== 'function' || !mqttClient.isConnected()) return false;
+            try {
+                const message = new Paho.MQTT.Message(JSON.stringify({
+                    type,
+                    cones,
+                    queue,
+                    historyLog,
+                    isBatchHold,
+                    timestamp: Date.now()
+                }));
+                message.destinationName = "pes/carline/" + syncRoomKey;
+                mqttClient.send(message);
+                return true;
+            } catch (err) {
+                console.warn("MQTT sync refresh response failed:", err);
+                return false;
+            }
+        }
 
-            const isAlreadyInCone = appState.cones.some(c => c && c.tag === tagClean);
-            const isAlreadyInQueue = appState.queue.includes(tagClean);
+        function refreshSync() {
+            const statusText = document.getElementById('sync-status-text');
+            const statusDot = document.getElementById('sync-status-dot');
+            const button = document.getElementById('refresh-sync-btn');
+            button.classList.add('animate-spin');
+            setTimeout(() => button.classList.remove('animate-spin'), 700);
 
-            if (isAlreadyInCone || isAlreadyInQueue) {
-                showToast(`Tag #${tagClean} is already active in line!`, 'warning');
+            if (!mqttClient || typeof mqttClient.isConnected !== 'function' || !mqttClient.isConnected()) {
+                statusText.textContent = "Reconnecting Sync...";
+                statusDot.className = "w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse";
+                try { if (mqttClient) mqttClient.disconnect(); } catch (e) {}
+                initMQTTConnection();
+                showDispatchFeedback('Sync reconnect started. Tap Refresh Sync again once it shows as synced.');
                 return;
             }
 
-            appState.queue.push(tagClean);
-            shiftQueueToCones();
+            try {
+                const message = new Paho.MQTT.Message(JSON.stringify({
+                    type: 'sync-request',
+                    requesterId: mqttClientId,
+                    timestamp: Date.now()
+                }));
+                message.destinationName = "pes/carline/" + syncRoomKey;
+                mqttClient.send(message);
+                statusText.textContent = "Sync refresh requested";
+                statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 inline-block";
+                showDispatchFeedback('Requested the latest dismissal state from connected devices.');
+            } catch (err) {
+                console.warn("MQTT refresh request failed:", err);
+                showDispatchFeedback('Could not request a sync refresh. Reconnecting now.', 'error');
+                initMQTTConnection();
+            }
+        }
+
+        function openSyncModal() {
+            document.getElementById('sync-room-input').value = syncRoomKey;
+            document.getElementById('sync-modal').classList.remove('hidden');
+        }
+
+        function closeSyncModal() {
+            document.getElementById('sync-modal').classList.add('hidden');
+        }
+
+        function saveSyncRoomSettings() {
+            const val = document.getElementById('sync-room-input').value.trim().toUpperCase();
+            if (val) {
+                syncRoomKey = val;
+                localStorage.setItem('pes_carline_sync_room', syncRoomKey);
+                closeSyncModal();
+                if (mqttClient) {
+                    try { mqttClient.disconnect(); } catch (e) {}
+                }
+                initMQTTConnection();
+            }
+        }
+
+        // ================= TAB NAVIGATION =================
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = "tab-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white hover:bg-slate-700/50";
+            });
+
+            // Mobile tab styling
+            document.querySelectorAll('[id^="mobile-tab-"]').forEach(btn => {
+                btn.className = "px-3 py-1.5 rounded-lg font-bold shrink-0 text-slate-300";
+            });
+
+            const activeView = document.getElementById('view-' + tabId);
+            if (activeView) activeView.classList.remove('hidden');
+
+            const activeBtn = document.getElementById('tab-btn-' + tabId);
+            if (activeBtn) {
+                activeBtn.className = "tab-btn active px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow";
+            }
+
+            const mobileBtn = document.getElementById('mobile-tab-' + tabId);
+            if (mobileBtn) {
+                mobileBtn.className = "px-3 py-1.5 rounded-lg font-bold shrink-0 bg-indigo-600 text-white";
+            }
+
+            if (tabId === 'roster') renderRosterTable();
+            if (tabId === 'history') renderHistoryTable();
+            if (tabId === 'hangtags') renderHangtagsPreview();
+        }
+
+        // ================= CAR DISPATCH & QUEUE LOGIC =================
+        function handleTagSearchInput(e) {
+            const query = e.target.value.trim().toLowerCase();
+            const resultsBox = document.getElementById('student-search-results');
+            const previewBox = document.getElementById('tag-preview-box');
+            const previewNames = document.getElementById('tag-preview-names');
+
+            if (!query) {
+                resultsBox.classList.add('hidden');
+                previewBox.classList.add('hidden');
+                return;
+            }
+
+            // Find matching students from roster
+            const matches = roster.filter(s => 
+                s.tag.toLowerCase().includes(query) ||
+                s.firstName.toLowerCase().includes(query) ||
+                s.lastName.toLowerCase().includes(query)
+            );
+
+            if (matches.length > 0) {
+                resultsBox.innerHTML = matches.slice(0, 8).map(s => `
+                    <div onclick="selectSearchResult('${s.tag}')" class="p-2.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-all">
+                        <div>
+                            <span class="font-extrabold text-xs text-slate-900">${s.firstName} ${s.lastName}</span>
+                            <span class="text-[10px] text-slate-400 block">Grade ${s.grade} • ${s.teacher}</span>
+                        </div>
+                        <span class="px-2 py-1 bg-indigo-100 text-indigo-800 font-black rounded-lg text-xs">#${s.tag}</span>
+                    </div>
+                `).join('');
+                resultsBox.classList.remove('hidden');
+
+                // If query matches an exact tag number, preview students
+                const tagExact = roster.filter(s => s.tag.toLowerCase() === query);
+                if (tagExact.length > 0) {
+                    previewNames.innerHTML = tagExact.map(s => `• ${s.firstName} ${s.lastName} (${s.grade} - ${s.teacher})`).join('<br>');
+                    previewBox.classList.remove('hidden');
+                } else {
+                    previewBox.classList.add('hidden');
+                }
+            } else {
+                resultsBox.innerHTML = `<div class="p-3 text-xs text-slate-400 font-bold text-center">No matching roster students</div>`;
+                resultsBox.classList.remove('hidden');
+                previewBox.classList.add('hidden');
+            }
+        }
+
+        function selectSearchResult(tag) {
+            document.getElementById('tag-input').value = tag;
+            document.getElementById('student-search-results').classList.add('hidden');
+            dispatchTagNumber(tag);
+        }
+
+        function handleTagSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('tag-input');
+            const query = input.value.trim().toUpperCase();
+            if (!query) return;
+
+            document.getElementById('student-search-results').classList.add('hidden');
+            document.getElementById('tag-preview-box').classList.add('hidden');
+
+            dispatchTagNumber(query);
+            input.value = "";
+        }
+
+        function dispatchTagNumber(tagNum) {
+            tagNum = tagNum.trim().toUpperCase();
+
+            // A car may only appear once: either at a cone or in the waiting queue.
+            const activeCone = cones.find(c => c.tag.toUpperCase() === tagNum);
+            const queuedCar = queue.find(q => q.tag.toUpperCase() === tagNum);
+            if (activeCone || queuedCar) {
+                showDispatchFeedback(
+                    `Tag #${tagNum} is already ${activeCone ? `active at Cone ${activeCone.id}` : 'in the waiting queue'}. It was not called again.`,
+                    'error'
+                );
+                return false;
+            }
+
+            // Find students for this tag
+            const assignedStudents = roster.filter(s => s.tag.toUpperCase() === tagNum.toUpperCase());
+            const studentData = assignedStudents.length > 0 
+                ? assignedStudents 
+                : [{ firstName: "Guest / Tag", lastName: "#" + tagNum, grade: "-", teacher: "-" }];
+
+            // Check if all 5 cones are occupied OR if we are currently holding a released batch
+            const emptyConeIndex = cones.findIndex(c => c.tag === "");
+
+            if (emptyConeIndex !== -1 && !isBatchHold) {
+                // Assign immediately to empty cone
+                cones[emptyConeIndex].tag = tagNum;
+                cones[emptyConeIndex].students = studentData;
+                cones[emptyConeIndex].timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                playAudioChime();
+            } else {
+                // Check if tag is already in active queue to prevent duplicate queuing
+                if (!queue.some(q => q.tag.toUpperCase() === tagNum.toUpperCase())) {
+                    queue.push({
+                        tag: tagNum,
+                        students: studentData,
+                        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    });
+                }
+            }
+
+            saveStateStorageAndSync();
             renderAllViews();
-            broadcastState(true);
-
-            if (appState.audioEnabled) playChimeSound();
-
-            const students = getStudentsForTag(tagClean);
-            const studentNames = students.map(s => s.firstName).join(', ') || 'Vehicle';
-            showToast(`Called Tag #${tagClean} (${studentNames})`, 'success');
+            return true;
         }
 
-        // QUEUE SHIFTING LOGIC:
-        // The queue line ONLY refills empty cone slots when ALL 5 cone slots are completely empty.
-        // If an individual tag is released while other cones are still active, the queue waits!
-        function shiftQueueToCones() {
-            const allConesEmpty = appState.cones.every(c => c === null);
+        function showDispatchFeedback(message, type = 'success') {
+            const feedback = document.getElementById('dispatch-feedback');
+            feedback.textContent = message;
+            feedback.className = `fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-md w-[calc(100%-2rem)] px-4 py-3 rounded-xl shadow-xl border text-sm font-bold ${
+                type === 'error'
+                    ? 'bg-rose-50 border-rose-300 text-rose-800'
+                    : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+            }`;
+            clearTimeout(showDispatchFeedback.timer);
+            showDispatchFeedback.timer = setTimeout(() => feedback.classList.add('hidden'), 5000);
+        }
 
-            // If all 5 cones are cleared/empty, reset batch release flag and pull the next batch of up to 5 cars from queue
-            if (allConesEmpty) {
-                appState.batchReleased = false;
-                for (let i = 0; i < 5; i++) {
-                    if (appState.queue.length > 0) {
-                        const nextTag = appState.queue.shift();
-                        appState.cones[i] = {
-                            tag: nextTag,
-                            students: getStudentsForTag(nextTag),
-                            calledAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        };
-                    }
-                }
+        function advanceQueueToCones() {
+            // Check if all cones are completely empty now
+            const allEmpty = cones.every(c => c.tag === "");
+            if (allEmpty) {
+                isBatchHold = false; // Lift batch release hold once all 5 vehicles leave
+            }
+
+            if (isBatchHold) {
+                // Do not auto-advance queue while waiting for remaining batch cars to exit
                 return;
             }
 
-            // If releasing has NOT started yet for this batch, allow newly called tags to fill remaining empty cone slots
-            if (!appState.batchReleased) {
-                for (let i = 0; i < 5; i++) {
-                    if (appState.cones[i] === null && appState.queue.length > 0) {
-                        const nextTag = appState.queue.shift();
-                        appState.cones[i] = {
-                            tag: nextTag,
-                            students: getStudentsForTag(nextTag),
-                            calledAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        };
-                    }
+            // Fill empty cones from queue
+            for (let i = 0; i < cones.length; i++) {
+                if (cones[i].tag === "" && queue.length > 0) {
+                    const nextInLine = queue.shift();
+                    cones[i].tag = nextInLine.tag;
+                    cones[i].students = nextInLine.students;
+                    cones[i].timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    playAudioChime();
                 }
             }
         }
 
-        function dismissCone(index, triggerBroadcast = true) {
-            const item = appState.cones[index];
-            if (!item) return;
+        function dismissSingleCone(coneId) {
+            const idx = cones.findIndex(c => c.id === coneId);
+            if (idx !== -1 && cones[idx].tag !== "") {
+                // The first individual release locks this batch.  Empty cones stay empty
+                // until every vehicle that was part of the current batch has been released.
+                const otherBatchCarsRemain = cones.some((c, coneIndex) => coneIndex !== idx && c.tag !== "");
+                if (otherBatchCarsRemain) isBatchHold = true;
 
-            // Mark that releasing has begun for this batch so queue line holds until all 5 cones clear
-            appState.batchReleased = true;
+                // Add to history log
+                historyLog.unshift({
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    tag: cones[idx].tag,
+                    cone: cones[idx].id,
+                    students: cones[idx].students.map(s => `${s.firstName} ${s.lastName}`).join(', ')
+                });
 
-            const finalStudents = item.students || getStudentsForTag(item.tag);
-            const logEntry = {
-                id: Math.random().toString(),
-                tag: item.tag,
-                students: finalStudents,
-                cone: index + 1,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                timestamp: Date.now()
-            };
+                // Clear cone
+                cones[idx].tag = "";
+                cones[idx].students = [];
+                cones[idx].timestamp = "";
 
-            appState.dismissedLog.unshift(logEntry);
-            appState.cones[index] = null;
-            shiftQueueToCones();
-
-            if (triggerBroadcast) {
+                advanceQueueToCones();
+                saveStateStorageAndSync();
                 renderAllViews();
-                broadcastState(false);
-                showToast(`Released Tag #${item.tag} from Cone ${index + 1}`, 'info');
             }
+        }
+
+        // Removes an accidental assignment without recording a dismissal event.
+        // It follows the same batch-lock rule as an individual cone release.
+        function removeConeAssignment(coneId) {
+            const idx = cones.findIndex(c => c.id === coneId);
+            if (idx === -1 || cones[idx].tag === "") return;
+
+            const tag = cones[idx].tag;
+
+            const otherBatchCarsRemain = cones.some((c, coneIndex) => coneIndex !== idx && c.tag !== "");
+            if (otherBatchCarsRemain) isBatchHold = true;
+
+            cones[idx].tag = "";
+            cones[idx].students = [];
+            cones[idx].timestamp = "";
+            advanceQueueToCones();
+            saveStateStorageAndSync();
+            renderAllViews();
+            showDispatchFeedback(`Tag #${tag} was removed from Cone ${coneId}.`);
         }
 
         function dismissCurrentBatch() {
-            let releasedCount = 0;
-            appState.batchReleased = true;
-            for (let i = 0; i < 5; i++) {
-                if (appState.cones[i] !== null) {
-                    dismissCone(i, false);
-                    releasedCount++;
+            // Dismiss all currently loaded cones at once
+            let releasedAny = false;
+            cones.forEach(c => {
+                if (c.tag !== "") {
+                    historyLog.unshift({
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                        tag: c.tag,
+                        cone: c.id,
+                        students: c.students.map(s => `${s.firstName} ${s.lastName}`).join(', ')
+                    });
+                    c.tag = "";
+                    c.students = [];
+                    c.timestamp = "";
+                    releasedAny = true;
                 }
-            }
-            
-            // Force reset batch release and advance queue
-            shiftQueueToCones();
+            });
 
-            if (releasedCount > 0 || appState.queue.length > 0) {
-                renderAllViews();
-                broadcastState(false);
-                showToast(`Released active cones and advanced queue line!`, 'success');
+            if (releasedAny && queue.length > 0) {
+                isBatchHold = false; // Allow next 5 cars to enter cones
+                advanceQueueToCones();
             } else {
-                showToast('No active vehicles in Cones 1–5', 'warning');
+                isBatchHold = false;
+            }
+
+            saveStateStorageAndSync();
+            renderAllViews();
+        }
+
+        function removeQueueItem(index) {
+            if (index >= 0 && index < queue.length) {
+                queue.splice(index, 1);
+                saveStateStorageAndSync();
+                renderAllViews();
             }
         }
 
-        function removeWrongCallFromCone(index) {
-            const item = appState.cones[index];
-            if (!item) return;
-
-            appState.cones[index] = null;
-            shiftQueueToCones();
-            renderAllViews();
-            broadcastState(false);
-            showToast(`Cancelled incorrect call for Tag #${item.tag}`, 'info');
+        // Let the caller choose an open cone; this intentionally overrides batch hold.
+        function openQueueConePicker(index) {
+            if (index < 0 || index >= queue.length) return;
+            activeQueueTag = queue[index].tag;
+            document.getElementById('queue-picker-tag').textContent = `Tag #${activeQueueTag}`;
+            document.getElementById('queue-cone-picker-options').innerHTML = cones.map(c => c.tag === ""
+                ? `<button onclick="sendQueuedTagToCone(${c.id})" class="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-2 py-3 text-xs font-black text-white">Cone ${c.id}</button>`
+                : `<button disabled class="rounded-xl bg-slate-100 px-2 py-3 text-xs font-bold text-slate-400 line-through">Cone ${c.id}</button>`
+            ).join('');
+            document.getElementById('queue-cone-picker-modal').classList.remove('hidden');
         }
 
-        function returnConeToQueue(index) {
-            const item = appState.cones[index];
-            if (!item) return;
-
-            appState.queue.unshift(item.tag);
-            appState.cones[index] = null;
-            renderAllViews();
-            broadcastState(false);
-            showToast(`Returned Tag #${item.tag} back to top of queue`, 'info');
+        function closeQueueConePicker() {
+            document.getElementById('queue-cone-picker-modal').classList.add('hidden');
+            activeQueueTag = null;
         }
 
-        function removeFromQueue(index) {
-            const removed = appState.queue.splice(index, 1);
-            shiftQueueToCones();
-            renderAllViews();
-            broadcastState(false);
-            showToast(`Removed Tag #${removed[0]} from queue`, 'info');
-        }
-
-        function moveQueueItem(index, direction) {
-            const newIndex = index + direction;
-            if (newIndex < 0 || newIndex >= appState.queue.length) return;
-            const temp = appState.queue[index];
-            appState.queue[index] = appState.queue[newIndex];
-            appState.queue[newIndex] = temp;
-            renderAllViews();
-            broadcastState(false);
-        }
-
-        function renderCallerCones() {
-            const grid = document.getElementById('cone-grid');
-            const batchBanner = document.getElementById('batch-status-banner');
-            if (!grid) return;
-
-            const hasActiveCones = appState.cones.some(c => c !== null);
-            const isBatchHolding = appState.batchReleased && hasActiveCones && appState.queue.length > 0;
-
-            if (batchBanner) {
-                if (isBatchHolding) {
-                    batchBanner.classList.remove('hidden');
-                } else {
-                    batchBanner.classList.add('hidden');
-                }
+        function sendQueuedTagToCone(coneId) {
+            const queueIndex = queue.findIndex(q => q.tag === activeQueueTag);
+            const coneIndex = cones.findIndex(c => c.id === coneId);
+            if (queueIndex === -1 || coneIndex === -1) {
+                closeQueueConePicker();
+                return;
+            }
+            if (cones[coneIndex].tag !== "") {
+                showDispatchFeedback(`Cone ${coneId} is already occupied.`, 'error');
+                openQueueConePicker(queueIndex);
+                return;
             }
 
-            grid.innerHTML = appState.cones.map((cone, idx) => {
-                const coneNum = idx + 1;
-                if (!cone) {
-                    const emptyLabel = appState.batchReleased && hasActiveCones
-                        ? 'Released (Waiting for Batch)'
-                        : 'Empty Cone';
-                    return `
-                        <div class="bg-slate-800/60 border-2 border-dashed ${appState.batchReleased ? 'border-amber-500/40' : 'border-slate-700/80'} rounded-2xl p-3 flex flex-col items-center justify-center min-h-[145px] text-center">
-                            <span class="w-7 h-7 rounded-full bg-slate-700 text-slate-400 text-xs font-black flex items-center justify-center mb-2">${coneNum}</span>
-                            <i class="fa-solid fa-traffic-cone ${appState.batchReleased ? 'text-amber-500/50' : 'text-slate-600'} text-2xl mb-1"></i>
-                            <span class="text-[10px] sm:text-[11px] font-bold ${appState.batchReleased ? 'text-amber-400/80' : 'text-slate-500'} uppercase tracking-wider">${emptyLabel}</span>
-                        </div>
-                    `;
-                }
-
-                const students = cone.students || getStudentsForTag(cone.tag);
-                const namesStr = students.length > 0 
-                    ? students.map(s => `${s.firstName} ${s.lastName}`).join('<br>') 
-                    : '<span class="italic text-slate-400">Unassigned Tag</span>';
-
-                return `
-                    <div class="bg-slate-800 border-2 border-amber-400/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-lg relative">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center shadow-md">${coneNum}</span>
-                            
-                            <div class="flex items-center gap-1">
-                                <button onclick="openAdjustConeModal(${idx})" class="text-indigo-300 hover:text-white p-1 rounded-lg bg-indigo-950/60 hover:bg-indigo-900 transition-colors" title="Adjust Tag or Students">
-                                    <i class="fa-solid fa-pen-to-square text-xs"></i>
-                                </button>
-                                <button onclick="removeWrongCallFromCone(${idx})" class="text-rose-400 hover:text-rose-200 p-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 transition-colors" title="Cancel Wrong Call">
-                                    <i class="fa-solid fa-xmark text-xs"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="my-1 cursor-pointer" onclick="openAdjustConeModal(${idx})" title="Click to adjust cone details">
-                            <div class="text-2xl font-black text-amber-300 leading-none mb-1">#${cone.tag}</div>
-                            <div class="text-[11px] sm:text-xs font-bold text-slate-100 line-clamp-2 leading-tight">${namesStr}</div>
-                        </div>
-                        <button onclick="dismissCone(${idx})" class="mt-2 w-full py-1.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-black text-xs rounded-xl shadow flex items-center justify-center gap-1 transition-all">
-                            Release <i class="fa-solid fa-check"></i>
-                        </button>
-                    </div>
-                `;
-            }).join('');
+            const car = queue.splice(queueIndex, 1)[0];
+            cones[coneIndex].tag = car.tag;
+            cones[coneIndex].students = car.students;
+            cones[coneIndex].timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            playAudioChime();
+            saveStateStorageAndSync();
+            renderAllViews();
+            closeQueueConePicker();
+            showDispatchFeedback(`Tag #${car.tag} was sent to Cone ${coneId}.`);
         }
 
-        // CONE ADJUSTMENT MODAL LOGIC
-        function openAdjustConeModal(coneIndex) {
-            currentAdjustingConeIndex = coneIndex;
-            const cone = appState.cones[coneIndex];
-            if (!cone) return;
+        // ================= KEYPAD CONTROLS =================
+        function appendKeypad(char) {
+            const input = document.getElementById('tag-input');
+            input.value += char;
+            input.dispatchEvent(new Event('input'));
+        }
 
-            document.getElementById('adjust-modal-cone-num').innerText = coneIndex + 1;
+        function clearKeypad() {
+            const input = document.getElementById('tag-input');
+            input.value = "";
+            document.getElementById('student-search-results').classList.add('hidden');
+            document.getElementById('tag-preview-box').classList.add('hidden');
+        }
+
+        function backspaceKeypad() {
+            const input = document.getElementById('tag-input');
+            input.value = input.value.slice(0, -1);
+            input.dispatchEvent(new Event('input'));
+        }
+
+        // ================= ADJUST CONE MODAL =================
+        function openAdjustConeModal(coneId) {
+            activeAdjustConeId = coneId;
+            const cone = cones.find(c => c.id === coneId);
+            document.getElementById('adjust-modal-cone-num').textContent = coneId;
             document.getElementById('adjust-modal-tag').value = cone.tag;
-            document.getElementById('adjust-modal-cone-select').value = coneIndex;
+            
+            if (cone.tag) {
+                document.getElementById('adjust-modal-names').innerHTML = cone.students.map(s => `• ${s.firstName} ${s.lastName} (${s.grade} - ${s.teacher})`).join('<br>');
+            } else {
+                document.getElementById('adjust-modal-names').textContent = "Cone currently empty";
+            }
 
-            renderAdjustModalStudentsList(cone.tag, cone.students);
             document.getElementById('adjust-cone-modal').classList.remove('hidden');
         }
 
         function closeAdjustConeModal() {
             document.getElementById('adjust-cone-modal').classList.add('hidden');
-            currentAdjustingConeIndex = -1;
+            activeAdjustConeId = null;
         }
 
-        function renderAdjustModalStudentsList(tag, currentStudents) {
-            const listEl = document.getElementById('adjust-modal-students-list');
-            if (!listEl) return;
-
-            const fullTagStudents = getStudentsForTag(tag);
-            const activeSet = new Set((currentStudents || fullTagStudents).map(s => `${s.firstName}_${s.lastName}`));
-
-            if (fullTagStudents.length === 0) {
-                listEl.innerHTML = `<div class="text-xs text-slate-400 italic">No student names registered under Tag #${tag}.</div>`;
+        function lookupTagForAdjustModal() {
+            const tagVal = document.getElementById('adjust-modal-tag').value.trim().toUpperCase();
+            if (!tagVal) {
+                document.getElementById('adjust-modal-names').textContent = "Enter tag #";
                 return;
             }
-
-            listEl.innerHTML = fullTagStudents.map((s, idx) => {
-                const key = `${s.firstName}_${s.lastName}`;
-                const isChecked = activeSet.has(key);
-                return `
-                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 bg-white p-2 rounded-lg border border-slate-200 cursor-pointer hover:bg-indigo-50">
-                        <input type="checkbox" class="adjust-student-checkbox text-indigo-600 focus:ring-indigo-500 rounded" value="${idx}" ${isChecked ? 'checked' : ''}>
-                        <span>${s.firstName} ${s.lastName} (${s.grade || 'N/A'})</span>
-                    </label>
-                `;
-            }).join('');
-        }
-
-        function applyTagChangeInModal() {
-            if (currentAdjustingConeIndex < 0) return;
-            const newTag = document.getElementById('adjust-modal-tag').value.trim().toUpperCase();
-            if (!newTag) return;
-
-            const cone = appState.cones[currentAdjustingConeIndex];
-            if (cone) {
-                cone.tag = newTag;
-                cone.students = getStudentsForTag(newTag);
-                renderAdjustModalStudentsList(newTag, cone.students);
-                showToast(`Updated Cone ${currentAdjustingConeIndex + 1} to Tag #${newTag}`, 'info');
-            }
-        }
-
-        function changeConeSlotInModal(targetSlotIndex) {
-            if (currentAdjustingConeIndex < 0 || targetSlotIndex === currentAdjustingConeIndex) return;
-
-            const temp = appState.cones[targetSlotIndex];
-            appState.cones[targetSlotIndex] = appState.cones[currentAdjustingConeIndex];
-            appState.cones[currentAdjustingConeIndex] = temp;
-
-            currentAdjustingConeIndex = targetSlotIndex;
-            document.getElementById('adjust-modal-cone-num').innerText = targetSlotIndex + 1;
-            showToast(`Moved car to Cone ${targetSlotIndex + 1}`, 'info');
-        }
-
-        function cancelAndReturnToQueue() {
-            if (currentAdjustingConeIndex >= 0) {
-                returnConeToQueue(currentAdjustingConeIndex);
-                closeAdjustConeModal();
-            }
-        }
-
-        function cancelAndRemoveFromLine() {
-            if (currentAdjustingConeIndex >= 0) {
-                removeWrongCallFromCone(currentAdjustingConeIndex);
-                closeAdjustConeModal();
+            const assigned = roster.filter(s => s.tag.toUpperCase() === tagVal);
+            if (assigned.length > 0) {
+                document.getElementById('adjust-modal-names').innerHTML = assigned.map(s => `• ${s.firstName} ${s.lastName} (${s.grade} - ${s.teacher})`).join('<br>');
+            } else {
+                document.getElementById('adjust-modal-names').innerHTML = `• Guest / Tag #${tagVal}`;
             }
         }
 
         function saveAdjustConeModal() {
-            if (currentAdjustingConeIndex < 0) return;
-            const cone = appState.cones[currentAdjustingConeIndex];
-            if (!cone) return;
+            if (activeAdjustConeId === null) return;
+            const idx = cones.findIndex(c => c.id === activeAdjustConeId);
+            const tagVal = document.getElementById('adjust-modal-tag').value.trim().toUpperCase();
 
-            const fullTagStudents = getStudentsForTag(cone.tag);
-            const checkboxes = document.querySelectorAll('.adjust-student-checkbox');
-            const selectedStudents = [];
-
-            checkboxes.forEach((cb) => {
-                if (cb.checked) {
-                    const idx = parseInt(cb.value);
-                    if (fullTagStudents[idx]) {
-                        selectedStudents.push(fullTagStudents[idx]);
-                    }
-                }
-            });
-
-            cone.students = selectedStudents;
-            closeAdjustConeModal();
-            renderAllViews();
-            broadcastState(false);
-            showToast('Cone adjustments saved!', 'success');
-        }
-
-        function renderQueueList() {
-            const listEl = document.getElementById('upcoming-queue-list');
-            const countEl = document.getElementById('waiting-queue-count');
-            if (!listEl) return;
-
-            if (countEl) countEl.innerText = `${appState.queue.length} cars waiting`;
-
-            if (appState.queue.length === 0) {
-                listEl.innerHTML = `<span class="text-xs text-slate-500 italic">No additional vehicles waiting in queue</span>`;
-                return;
+            if (!tagVal) {
+                cones[idx].tag = "";
+                cones[idx].students = [];
+                cones[idx].timestamp = "";
+            } else {
+                const assigned = roster.filter(s => s.tag.toUpperCase() === tagVal);
+                cones[idx].tag = tagVal;
+                cones[idx].students = assigned.length > 0 ? assigned : [{ firstName: "Guest / Tag", lastName: "#" + tagVal, grade: "-", teacher: "-" }];
+                cones[idx].timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
 
-            listEl.innerHTML = appState.queue.map((tag, idx) => {
-                const students = getStudentsForTag(tag);
-                const firstName = students.length > 0 ? students[0].firstName : 'Car';
+            closeAdjustConeModal();
+            saveStateStorageAndSync();
+            renderAllViews();
+        }
+
+        function clearSingleConeFromModal() {
+            if (activeAdjustConeId === null) return;
+            const idx = cones.findIndex(c => c.id === activeAdjustConeId);
+            cones[idx].tag = "";
+            cones[idx].students = [];
+            cones[idx].timestamp = "";
+            closeAdjustConeModal();
+            advanceQueueToCones();
+            saveStateStorageAndSync();
+            renderAllViews();
+        }
+
+        // ================= RENDERING LOGIC =================
+        function renderAllViews() {
+            renderOutdoorCones();
+            renderProjectorCones();
+            renderQueueStreams();
+            renderQuickPickTags();
+            updateBatchBanners();
+        }
+
+        function updateBatchBanners() {
+            const banner1 = document.getElementById('batch-status-banner');
+            const banner2 = document.getElementById('projector-batch-banner');
+
+            if (isBatchHold) {
+                banner1.classList.remove('hidden');
+                banner2.classList.remove('hidden');
+            } else {
+                banner1.classList.add('hidden');
+                banner2.classList.add('hidden');
+            }
+        }
+
+        function renderOutdoorCones() {
+            const grid = document.getElementById('cone-grid');
+            grid.innerHTML = cones.map(c => {
+                const isOccupied = c.tag !== "";
                 return `
-                    <div class="bg-indigo-900/90 border border-indigo-700/80 text-white px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs shrink-0 shadow-sm">
-                        <span class="font-black text-amber-300">#${tag}</span>
-                        <span class="font-medium text-indigo-100 text-[11px] max-w-[70px] truncate">${firstName}</span>
-                        <div class="flex items-center gap-0.5 ml-1">
-                            ${idx > 0 ? `<button onclick="moveQueueItem(${idx}, -1)" class="text-indigo-300 hover:text-amber-300 p-0.5 text-[10px]"><i class="fa-solid fa-chevron-left"></i></button>` : ''}
-                            <button onclick="removeFromQueue(${idx})" class="text-indigo-400 hover:text-rose-400 p-0.5 text-xs">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
+                    <div class="p-3 sm:p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                        isOccupied 
+                            ? 'bg-slate-800 border-amber-400/50 shadow-lg' 
+                            : 'bg-slate-800/40 border-slate-700/50 border-dashed opacity-60'
+                    }">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-black px-2 py-0.5 rounded-lg ${isOccupied ? 'bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-300'}">
+                                    CONE ${c.id}
+                                </span>
+                                ${isOccupied ? `<span class="text-[10px] text-slate-400 font-bold">${c.timestamp}</span>` : ''}
+                            </div>
+
+                            ${isOccupied ? `
+                                <div class="text-2xl sm:text-3xl font-black text-amber-400 my-1 tracking-wider">#${c.tag}</div>
+                                <div class="space-y-1 my-2">
+                                    ${c.students.map(s => `
+                                        <div class="text-xs font-bold text-white truncate">
+                                            ${s.firstName} ${s.lastName}
+                                            <span class="text-[10px] font-normal text-slate-400 block">${s.grade} • ${s.teacher}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : `
+                                <div class="py-6 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+                                    Empty Cone
+                                </div>
+                            `}
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-700/50 flex gap-1.5 mt-2">
+                            ${isOccupied ? `
+                                <button onclick="dismissSingleCone(${c.id})" class="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow transition-all">
+                                    Loaded <i class="fa-solid fa-check ml-1"></i>
+                                </button>
+                                <button onclick="removeConeAssignment(${c.id})" class="px-2 py-1.5 bg-rose-500/90 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition-all" title="Remove accidental assignment">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                                <button onclick="openAdjustConeModal(${c.id})" class="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs rounded-xl transition-all" title="Edit or Reassign Cone">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                            ` : `
+                                <button onclick="openAdjustConeModal(${c.id})" class="w-full py-1.5 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all">
+                                    Assign Tag
+                                </button>
+                            `}
                         </div>
                     </div>
                 `;
@@ -1227,609 +1355,163 @@
 
         function renderProjectorCones() {
             const grid = document.getElementById('projector-cone-grid');
-            const upcomingList = document.getElementById('projector-upcoming-list');
-            const projBanner = document.getElementById('projector-batch-banner');
-            if (!grid) return;
-
-            const hasActiveCones = appState.cones.some(c => c !== null);
-            if (projBanner) {
-                if (appState.batchReleased && hasActiveCones && appState.queue.length > 0) {
-                    projBanner.classList.remove('hidden');
-                } else {
-                    projBanner.classList.add('hidden');
-                }
-            }
-
-            grid.innerHTML = appState.cones.map((cone, idx) => {
-                const coneNum = idx + 1;
-                if (!cone) {
-                    const statusText = appState.batchReleased && hasActiveCones ? 'RELEASED' : 'OPEN SLOT';
-                    return `
-                        <div class="bg-slate-900/80 border-2 border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
-                            <span class="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 font-black text-xl flex items-center justify-center mb-3">CONE ${coneNum}</span>
-                            <span class="text-base font-bold ${appState.batchReleased && hasActiveCones ? 'text-amber-400/80' : 'text-slate-600'} uppercase tracking-widest">${statusText}</span>
-                        </div>
-                    `;
-                }
-
-                const students = cone.students || getStudentsForTag(cone.tag);
-                const namesHtml = students.length > 0 
-                    ? students.map(s => `<div class="text-xl sm:text-2xl font-black text-white leading-snug">${s.firstName} ${s.lastName}</div><div class="text-sm font-semibold text-amber-200/90 mb-1">Grade ${s.grade || '-'} (${s.teacher || '-'})</div>`).join('')
-                    : '<div class="text-xl font-bold text-slate-300">Unassigned Tag</div>';
-
+            grid.innerHTML = cones.map(c => {
+                const isOccupied = c.tag !== "";
                 return `
-                    <div class="bg-gradient-to-b from-indigo-900 to-indigo-950 border-4 border-amber-400 rounded-3xl p-5 shadow-2xl flex flex-col justify-between">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-sm uppercase tracking-wider">CONE ${coneNum}</span>
-                            <span class="text-3xl font-black text-amber-300">#${cone.tag}</span>
-                        </div>
-                        <div class="my-3 space-y-1">
-                            ${namesHtml}
-                        </div>
-                        <div class="bg-indigo-900/80 rounded-xl px-3 py-1.5 text-center text-xs font-bold text-indigo-200 border border-indigo-700/50">
-                            Report to Cone ${coneNum}
+                    <div class="p-5 rounded-3xl border-2 transition-all flex flex-col justify-between ${
+                        isOccupied 
+                            ? 'bg-slate-900 border-amber-400 shadow-2xl scale-[1.02]' 
+                            : 'bg-slate-900/40 border-slate-800 border-dashed opacity-40'
+                    }">
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-sm font-black px-3 py-1 rounded-xl ${isOccupied ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-400'}">
+                                    CONE ${c.id}
+                                </span>
+                                ${isOccupied ? `<span class="text-xs font-bold text-indigo-400">${c.timestamp}</span>` : ''}
+                            </div>
+
+                            ${isOccupied ? `
+                                <div class="text-5xl font-black text-amber-400 my-3 tracking-widest text-center">#${c.tag}</div>
+                                <div class="space-y-2 mt-4 pt-3 border-t border-slate-800">
+                                    ${c.students.map(s => `
+                                        <div class="text-base font-extrabold text-white text-center">
+                                            ${s.firstName} ${s.lastName}
+                                            <span class="text-xs text-slate-400 font-medium block">Grade ${s.grade} — ${s.teacher}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : `
+                                <div class="py-12 text-center text-slate-600 text-sm font-black uppercase tracking-widest">
+                                    Ready
+                                </div>
+                            `}
                         </div>
                     </div>
                 `;
             }).join('');
-
-            if (upcomingList) {
-                if (appState.queue.length === 0) {
-                    upcomingList.innerHTML = `<span class="text-sm text-slate-400 italic">No upcoming vehicles</span>`;
-                } else {
-                    upcomingList.innerHTML = appState.queue.slice(0, 10).map(tag => {
-                        const students = getStudentsForTag(tag);
-                        const names = students.map(s => s.firstName).join(', ') || 'Vehicle';
-                        return `
-                            <div class="bg-slate-100 border border-slate-300 rounded-2xl px-4 py-2 flex items-center gap-2 text-slate-800 shadow-sm shrink-0">
-                                <span class="font-black text-indigo-600 text-base">#${tag}</span>
-                                <span class="font-bold text-xs text-slate-600">${names}</span>
-                            </div>
-                        `;
-                    }).join('');
-                }
-            }
         }
 
-        function renderRosterTable() {
-            const body = document.getElementById('roster-table-body');
-            const search = document.getElementById('roster-search')?.value.toLowerCase().trim() || '';
-            const gradeFilter = document.getElementById('roster-grade-filter')?.value || '';
-            const teacherFilter = document.getElementById('roster-teacher-filter')?.value || '';
-            const countNav = document.getElementById('nav-roster-count');
+        function renderQueueStreams() {
+            const countEl = document.getElementById('waiting-queue-count');
+            const outdoorList = document.getElementById('upcoming-queue-list');
+            const projectorList = document.getElementById('projector-upcoming-list');
 
-            if (countNav) countNav.innerText = appState.roster.length;
+            countEl.textContent = `${queue.length} vehicle${queue.length === 1 ? '' : 's'} waiting`;
 
-            updateTeacherFilterDropdown();
-
-            let filtered = appState.roster.filter(s => {
-                const matchSearch = !search || String(s.tag).toLowerCase().includes(search) || `${s.firstName} ${s.lastName}`.toLowerCase().includes(search);
-                const matchGrade = !gradeFilter || String(s.grade) === gradeFilter;
-                const matchTeacher = !teacherFilter || s.teacher === teacherFilter;
-                return matchSearch && matchGrade && matchTeacher;
-            });
-
-            if (!body) return;
-
-            if (filtered.length === 0) {
-                body.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400 italic">No students found matching your filter criteria.</td></tr>`;
+            if (queue.length === 0) {
+                outdoorList.innerHTML = `<span class="text-xs text-slate-500 font-bold italic">Queue line clear</span>`;
+                projectorList.innerHTML = `<span class="text-xs text-slate-500 font-bold italic">No vehicles in waiting queue</span>`;
                 return;
             }
 
-            body.innerHTML = filtered.map((s) => {
-                const globalIdx = appState.roster.findIndex(item => item === s);
+            const queueCardsHTML = queue.map((q, idx) => {
+                const names = q.students.map(s => `${s.firstName} ${s.lastName}`).join(' • ');
                 return `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="p-3 font-black text-indigo-600">#${s.tag}</td>
-                        <td class="p-3 font-bold text-slate-900">${s.firstName} ${s.lastName}</td>
-                        <td class="p-3 font-medium text-slate-600">${s.grade || 'N/A'}</td>
-                        <td class="p-3 font-medium text-slate-600">${s.teacher || 'N/A'}</td>
-                        <td class="p-3 text-right">
-                            <button onclick="openEditStudentModal(${globalIdx})" class="text-slate-400 hover:text-indigo-600 p-1 mr-1"><i class="fa-solid fa-pen"></i></button>
-                            <button onclick="deleteStudent(${globalIdx})" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
+                <div class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shrink-0 flex items-center gap-2 shadow-sm">
+                    <span class="text-xs font-black text-indigo-400">#${idx + 1}</span>
+                    <span class="text-sm font-black text-amber-400">#${q.tag}</span>
+                    <span class="text-xs font-bold text-white max-w-[180px] truncate" title="${names}">${names}</span>
+                    <button onclick="openQueueConePicker(${idx})" class="text-indigo-300 hover:text-indigo-100 text-xs ml-1 no-print" title="Choose a cone for this car">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                    </button>
+                    <button onclick="removeQueueItem(${idx})" class="text-slate-500 hover:text-rose-400 text-xs ml-1 no-print">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `;
             }).join('');
 
-            renderQuickPickTags();
-            renderHangtagsPreview();
-        }
+            outdoorList.innerHTML = queueCardsHTML;
 
-        function updateTeacherFilterDropdown() {
-            const dropdown = document.getElementById('roster-teacher-filter');
-            if (!dropdown) return;
-            const currentVal = dropdown.value;
-            const teachers = [...new Set(appState.roster.map(s => s.teacher).filter(Boolean))].sort();
-
-            dropdown.innerHTML = `<option value="">All Teachers</option>` + 
-                teachers.map(t => `<option value="${t}" ${t === currentVal ? 'selected' : ''}>${t}</option>`).join('');
+            projectorList.innerHTML = queue.map((q, idx) => `
+                <div class="bg-slate-800/80 border border-slate-700/80 px-4 py-2 rounded-xl shrink-0 flex items-center gap-3">
+                    <span class="text-xs font-black text-slate-400">P${idx + 1}</span>
+                    <span class="text-lg font-black text-amber-400">#${q.tag}</span>
+                    <span class="text-xs font-bold text-slate-200">${q.students.map(s => `${s.firstName} ${s.lastName}`).join(' • ')}</span>
+                </div>
+            `).join('');
         }
 
         function renderQuickPickTags() {
             const container = document.getElementById('quick-pick-tags');
-            if (!container) return;
-
-            const uniqueTags = [...new Set(appState.roster.map(s => String(s.tag)))].slice(0, 15);
+            // Get unique tag list from roster
+            const uniqueTags = Array.from(new Set(roster.map(s => s.tag))).slice(0, 15);
+            
             container.innerHTML = uniqueTags.map(tag => `
-                <button onclick="callTag('${tag}')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 font-bold text-xs rounded-lg border border-slate-200 text-slate-700 transition-all">
+                <button onclick="dispatchTagNumber('${tag}')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-600 hover:text-white font-black text-xs rounded-lg text-slate-700 transition-all border border-slate-200">
                     #${tag}
                 </button>
             `).join('');
         }
 
-        function handleCSVUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        // ================= ROSTER MANAGEMENT VIEW =================
+        function renderRosterTable() {
+            const search = document.getElementById('roster-search').value.toLowerCase();
+            const gradeFilter = document.getElementById('roster-grade-filter').value;
+            const teacherFilter = document.getElementById('roster-teacher-filter').value;
+            const tbody = document.getElementById('roster-table-body');
+            const countNav = document.getElementById('nav-roster-count');
 
-            const importMode = document.getElementById('csv-import-mode')?.value || 'replace';
-            const reader = new FileReader();
+            countNav.textContent = roster.length;
 
-            reader.onload = function(e) {
-                const text = e.target.result;
-                const lines = text.split(/\r\n|\n/);
-                const newStudents = [];
-
-                lines.forEach((line, index) => {
-                    if (index === 0 && line.toLowerCase().includes('tag')) return;
-                    const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-                    if (parts.length >= 3 && parts[0]) {
-                        newStudents.push({
-                            tag: parts[0].toUpperCase(),
-                            firstName: parts[1] || 'Student',
-                            lastName: parts[2] || '',
-                            grade: parts[3] || '',
-                            teacher: parts[4] || ''
-                        });
-                    }
-                });
-
-                if (newStudents.length > 0) {
-                    if (importMode === 'replace') {
-                        appState.roster = newStudents;
-                    } else {
-                        appState.roster = [...appState.roster, ...newStudents];
-                    }
-                    appState.hasCustomRoster = true;
-                    renderAllViews();
-                    broadcastState(false);
-                    showToast(`Successfully loaded ${newStudents.length} students from CSV!`, 'success');
-                } else {
-                    showToast('Invalid CSV format. Please ensure required columns exist.', 'warning');
-                }
-                event.target.value = '';
-            };
-            reader.readAsText(file);
-        }
-
-        function exportRosterCSV() {
-            let csv = "Tag,Student First Name,Student Last Name,Grade,Teacher\n";
-            appState.roster.forEach(s => {
-                csv += `"${s.tag}","${s.firstName}","${s.lastName}","${s.grade}","${s.teacher}"\n`;
+            const filtered = roster.filter(s => {
+                const matchesSearch = s.tag.toLowerCase().includes(search) || 
+                                      s.firstName.toLowerCase().includes(search) || 
+                                      s.lastName.toLowerCase().includes(search);
+                const matchesGrade = !gradeFilter || s.grade === gradeFilter;
+                const matchesTeacher = !teacherFilter || s.teacher === teacherFilter;
+                return matchesSearch && matchesGrade && matchesTeacher;
             });
-            downloadFile(csv, 'Petersburg_Roster.csv', 'text/csv');
-        }
 
-        function confirmResetRoster() {
-            appState.roster = [...DEMO_STUDENTS];
-            appState.hasCustomRoster = false;
-            renderAllViews();
-            broadcastState(false);
-            showToast('Loaded demo student roster', 'info');
-        }
-
-        function renderHistoryTable() {
-            const body = document.getElementById('history-table-body');
-            if (!body) return;
-
-            if (appState.dismissedLog.length === 0) {
-                body.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 italic">No dismissed cars logged today yet.</td></tr>`;
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400 font-bold">No students found matching current filters.</td></tr>`;
                 return;
             }
 
-            body.innerHTML = appState.dismissedLog.map(item => {
-                const names = (item.students || []).map(s => `${s.firstName} ${s.lastName}`).join(', ') || 'N/A';
+            tbody.innerHTML = filtered.map((s, idx) => {
+                const originalIndex = roster.indexOf(s);
                 return `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="p-3 font-bold text-slate-600">${item.time}</td>
-                        <td class="p-3 font-black text-indigo-600">#${item.tag}</td>
-                        <td class="p-3 font-bold text-amber-600">Cone ${item.cone}</td>
-                        <td class="p-3 text-slate-800 font-medium">${names}</td>
+                    <tr class="hover:bg-slate-50 transition-all">
+                        <td class="p-3"><span class="px-2 py-1 bg-indigo-50 text-indigo-700 font-black rounded-lg text-xs border border-indigo-100">#${s.tag}</span></td>
+                        <td class="p-3 font-extrabold text-slate-900">${s.firstName} ${s.lastName}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-md">Grade ${s.grade}</span></td>
+                        <td class="p-3 font-medium text-slate-600">${s.teacher}</td>
+                        <td class="p-3 text-right space-x-1">
+                            <button onclick="editStudentModal(${originalIndex})" class="p-1.5 text-slate-400 hover:text-indigo-600 transition-all"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteStudent(${originalIndex})" class="p-1.5 text-slate-400 hover:text-rose-600 transition-all"><i class="fa-solid fa-trash-can"></i></button>
+                        </td>
                     </tr>
                 `;
             }).join('');
         }
 
-        function exportHistoryCSV() {
-            let csv = "Time Released,Tag Number,Cone Number,Students Dismissed\n";
-            appState.dismissedLog.forEach(item => {
-                const names = (item.students || []).map(s => `${s.firstName} ${s.lastName}`).join('; ');
-                csv += `"${item.time}","${item.tag}","Cone ${item.cone}","${names}"\n`;
-            });
-            downloadFile(csv, `Dismissal_Log_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
-        }
-
-        function clearHistoryLog() {
-            appState.dismissedLog = [];
-            renderHistoryTable();
-            saveLocalStorage();
-            showToast('Dismissal log cleared', 'info');
-        }
-
-        function renderHangtagsPreview() {
-            const previewGrid = document.getElementById('hangtags-preview-grid');
-            const printContainer = document.getElementById('print-tags-container');
-            const searchInput = document.getElementById('hangtag-search')?.value.toLowerCase().trim() || '';
-            const countNav = document.getElementById('print-total-count');
-            const showingCountEl = document.getElementById('hangtag-showing-count');
-            if (!previewGrid) return;
-
-            const grouped = {};
-            appState.roster.forEach(s => {
-                const tag = String(s.tag).toUpperCase();
-                if (!grouped[tag]) grouped[tag] = [];
-                grouped[tag].push(s);
-            });
-
-            let tagsArray = Object.keys(grouped);
-            if (countNav) countNav.innerText = tagsArray.length;
-
-            if (searchInput) {
-                tagsArray = tagsArray.filter(tag => {
-                    if (tag.toLowerCase().includes(searchInput)) return true;
-                    return grouped[tag].some(s => `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchInput));
-                });
-            }
-
-            if (showingCountEl) showingCountEl.innerText = `Showing ${tagsArray.length} tag${tagsArray.length === 1 ? '' : 's'}`;
-
-            if (tagsArray.length === 0) {
-                previewGrid.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">No matching hangtags found.</div>`;
-                if (printContainer) printContainer.innerHTML = '';
-                return;
-            }
-
-            // Generate HTML template function for full sheet standard paper format
-            const createTagHtml = (tag, isPrintOnly = false) => {
-                const students = grouped[tag] || [];
-                const namesList = students.map(s => `
-                    <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
-                    <div class="text-sm sm:text-base font-bold text-indigo-700 mb-2">Grade ${s.grade || '-'} &bull; ${s.teacher || '-'}</div>
-                `).join('');
-
-                return `
-                    <div class="${isPrintOnly ? 'printable-hangtag page-break' : 'border-8 border-slate-900 rounded-3xl p-6 bg-white shadow-lg flex flex-col justify-between min-h-[500px] text-center relative overflow-hidden'}">
-                        
-                        <!-- Top Hook Cutout Alignment Guide -->
-                        <div>
-                            <div class="w-20 h-20 border-4 border-dashed border-slate-400 rounded-full mx-auto -mt-2 bg-slate-50 flex items-center justify-center">
-                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cutout</span>
-                            </div>
-                            <div class="text-[11px] font-black uppercase tracking-widest text-slate-500 mt-2">PETERSBURG ELEMENTARY SCHOOL</div>
-                        </div>
-
-                        <!-- Full Sheet Main Tag Number Display -->
-                        <div class="my-4">
-                            <span class="text-xs font-black uppercase tracking-widest text-indigo-600 block mb-1">CAR LINE TAG</span>
-                            <div class="text-7xl sm:text-8xl font-black text-slate-950 tracking-tighter leading-none">#${tag}</div>
-                        </div>
-
-                        <!-- Roster Details -->
-                        <div class="border-t-4 border-slate-900 pt-4 space-y-2">
-                            ${namesList}
-                        </div>
-
-                        <!-- Bottom Visibility Banner -->
-                        <div class="bg-slate-900 text-amber-400 py-2 px-4 rounded-2xl text-xs font-black uppercase tracking-widest mt-4">
-                            PLEASE HANG FROM REARVIEW MIRROR
-                        </div>
-                    </div>
-                `;
-            };
-
-            // Render Preview Cards with individual "Print This Tag" action bar
-            previewGrid.innerHTML = tagsArray.map(tag => `
-                <div class="space-y-2">
-                    <div class="flex items-center justify-between bg-slate-100 p-2.5 rounded-2xl border border-slate-200">
-                        <span class="font-black text-xs text-slate-700">Tag #${tag}</span>
-                        <button onclick="printSingleTag('${tag}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
-                            <i class="fa-solid fa-print"></i> Print This Tag
-                        </button>
-                    </div>
-                    ${createTagHtml(tag, false)}
-                </div>
-            `).join('');
-
-            // Populate Print Container for Batch Printing
-            if (printContainer) {
-                printContainer.innerHTML = tagsArray.map(tag => createTagHtml(tag, true)).join('');
-            }
-        }
-
-        function printSingleTag(tag) {
-            const printContainer = document.getElementById('print-tags-container');
-            if (!printContainer) return;
-
-            const grouped = {};
-            appState.roster.forEach(s => {
-                const t = String(s.tag).toUpperCase();
-                if (!grouped[t]) grouped[t] = [];
-                grouped[t].push(s);
-            });
-
-            const students = grouped[tag] || [];
-            const namesList = students.map(s => `
-                <div class="text-3xl font-extrabold text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
-                <div class="text-base font-bold text-indigo-700 mb-2">Grade ${s.grade || '-'} &bull; ${s.teacher || '-'}</div>
-            `).join('');
-
-            printContainer.innerHTML = `
-                <div class="printable-hangtag page-break">
-                    <div>
-                        <div class="w-20 h-20 border-4 border-dashed border-slate-400 rounded-full mx-auto -mt-2 bg-slate-50 flex items-center justify-center">
-                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cutout</span>
-                        </div>
-                        <div class="text-[11px] font-black uppercase tracking-widest text-slate-500 mt-2">PETERSBURG ELEMENTARY SCHOOL</div>
-                    </div>
-
-                    <div class="my-4">
-                        <span class="text-xs font-black uppercase tracking-widest text-indigo-600 block mb-1">CAR LINE TAG</span>
-                        <div class="text-8xl font-black text-slate-950 tracking-tighter leading-none">#${tag}</div>
-                    </div>
-
-                    <div class="border-t-4 border-slate-900 pt-4 space-y-2">
-                        ${namesList}
-                    </div>
-
-                    <div class="bg-slate-900 text-amber-400 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-widest mt-4">
-                        PLEASE HANG FROM REARVIEW MIRROR
-                    </div>
-                </div>
-            `;
-
-            window.print();
-            // Restore batch state in print container after trigger
-            renderHangtagsPreview();
-        }
-
-        function printAllHangtags() {
-            renderHangtagsPreview();
-            window.print();
-        }
-
-        function playChimeSound() {
-            try {
-                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
-
-                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.5);
-            } catch(e) {}
-        }
-
-        function toggleAudioChime() {
-            appState.audioEnabled = !appState.audioEnabled;
-            const btn = document.getElementById('audio-toggle-btn');
-            if (btn) {
-                btn.className = appState.audioEnabled 
-                    ? 'p-2 rounded-xl bg-slate-800 text-amber-400 hover:bg-slate-700 transition-all border border-slate-700'
-                    : 'p-2 rounded-xl bg-slate-800 text-slate-500 hover:bg-slate-700 transition-all border border-slate-700';
-            }
-            saveLocalStorage();
-            showToast(appState.audioEnabled ? 'Chime sound enabled' : 'Chime sound muted', 'info');
-        }
-
-        function searchStudents(query) {
-            const clean = query.trim().toLowerCase();
-            if (!clean) return [];
-
-            return appState.roster.filter(s => {
-                const tagMatch = String(s.tag).toLowerCase().includes(clean);
-                const firstMatch = String(s.firstName).toLowerCase().includes(clean);
-                const lastMatch = String(s.lastName).toLowerCase().includes(clean);
-                const fullNameMatch = `${s.firstName} ${s.lastName}`.toLowerCase().includes(clean);
-                return tagMatch || firstMatch || lastMatch || fullNameMatch;
-            });
-        }
-
-        function setupTagInputListener() {
-            const input = document.getElementById('tag-input');
-            const resultsBox = document.getElementById('student-search-results');
-            if (!input) return;
-
-            input.addEventListener('input', (e) => {
-                const val = e.target.value.trim();
-                const previewBox = document.getElementById('tag-preview-box');
-                const previewNames = document.getElementById('tag-preview-names');
-
-                if (!val) {
-                    if (previewBox) previewBox.classList.add('hidden');
-                    if (resultsBox) resultsBox.classList.add('hidden');
-                    return;
-                }
-
-                const matches = searchStudents(val);
-                const isPureNumeric = /^\d+$/.test(val);
-
-                // For numeric tag entries, keep dropdown hidden so it never obstructs the numeric keypad
-                if (isPureNumeric) {
-                    if (resultsBox) resultsBox.classList.add('hidden');
-                } else {
-                    // For name searches (containing letters), show the search results dropdown
-                    if (resultsBox) {
-                        if (matches.length > 0) {
-                            resultsBox.innerHTML = `
-                                <div class="p-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between px-3 text-[10px] font-bold text-slate-400 uppercase">
-                                    <span>Matching Students (${matches.length})</span>
-                                    <button type="button" onclick="document.getElementById('student-search-results').classList.add('hidden')" class="hover:text-slate-700"><i class="fa-solid fa-xmark"></i> Close</button>
-                                </div>
-                            ` + matches.map(s => `
-                                <div onclick="selectStudentFromSearch('${s.tag}')" class="p-2.5 hover:bg-indigo-50 cursor-pointer flex items-center justify-between transition-colors">
-                                    <div>
-                                        <div class="font-bold text-xs text-slate-900">${s.firstName} ${s.lastName}</div>
-                                        <div class="text-[10px] text-slate-500 font-medium">Gr. ${s.grade || '-'} • ${s.teacher || '-'}</div>
-                                    </div>
-                                    <span class="px-2 py-1 bg-indigo-100 text-indigo-700 font-black text-xs rounded-lg">#${s.tag}</span>
-                                </div>
-                            `).join('');
-                            resultsBox.classList.remove('hidden');
-                        } else {
-                            resultsBox.classList.add('hidden');
-                        }
-                    }
-                }
-
-                // Hide roster preview box for numeric input until at least 3 numbers are entered
-                if (isPureNumeric && val.length < 3) {
-                    if (previewBox) previewBox.classList.add('hidden');
-                    return;
-                }
-
-                const exactStudents = getStudentsForTag(val);
-                if (previewBox && previewNames) {
-                    if (exactStudents.length > 0) {
-                        previewNames.innerHTML = exactStudents.map(s => `<span class="inline-block bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-md mr-1">${s.firstName} ${s.lastName} (Gr. ${s.grade || '-'})</span>`).join(' ');
-                        previewBox.classList.remove('hidden');
-                    } else if (!isPureNumeric && matches.length > 0) {
-                        previewNames.innerText = matches.map(s => `${s.firstName} ${s.lastName} (#${s.tag})`).join(', ');
-                        previewBox.classList.remove('hidden');
-                    } else if (isPureNumeric) {
-                        previewNames.innerHTML = `<span class="text-indigo-600 font-semibold">Tag #${val} (Not in roster - will call as unassigned tag)</span>`;
-                        previewBox.classList.remove('hidden');
-                    } else {
-                        previewNames.innerText = 'No student found';
-                        previewBox.classList.remove('hidden');
-                    }
-                }
-            });
-
-            document.addEventListener('click', (e) => {
-                if (resultsBox && !input.contains(e.target) && !resultsBox.contains(e.target)) {
-                    resultsBox.classList.add('hidden');
-                }
-            });
-        }
-
-        function selectStudentFromSearch(tag) {
-            const input = document.getElementById('tag-input');
-            const resultsBox = document.getElementById('student-search-results');
-            if (input) input.value = tag;
-            if (resultsBox) resultsBox.classList.add('hidden');
-            callTag(tag);
-            clearKeypad();
-        }
-
-        function appendKeypad(char) {
-            const input = document.getElementById('tag-input');
-            const resultsBox = document.getElementById('student-search-results');
-            if (resultsBox) resultsBox.classList.add('hidden');
-            if (input) {
-                input.value += char;
-                input.dispatchEvent(new Event('input'));
-            }
-        }
-
-        function clearKeypad() {
-            const input = document.getElementById('tag-input');
-            const resultsBox = document.getElementById('student-search-results');
-            if (resultsBox) resultsBox.classList.add('hidden');
-            if (input) {
-                input.value = '';
-                input.dispatchEvent(new Event('input'));
-            }
-        }
-
-        function backspaceKeypad() {
-            const input = document.getElementById('tag-input');
-            if (input && input.value.length > 0) {
-                input.value = input.value.slice(0, -1);
-                input.dispatchEvent(new Event('input'));
-            }
-        }
-
-        function handleTagSubmit(e) {
-            e.preventDefault();
-            const input = document.getElementById('tag-input');
-            const resultsBox = document.getElementById('student-search-results');
-            if (resultsBox) resultsBox.classList.add('hidden');
-
-            if (input && input.value.trim()) {
-                const val = input.value.trim();
-                const matches = searchStudents(val);
-
-                if (matches.length > 0) {
-                    const exactTagMatch = matches.find(s => String(s.tag).toLowerCase() === val.toLowerCase());
-                    const targetTag = exactTagMatch ? exactTagMatch.tag : matches[0].tag;
-                    callTag(targetTag);
-                } else {
-                    callTag(val);
-                }
-                clearKeypad();
-            }
-        }
-
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`view-${tabId}`)?.classList.remove('hidden');
-
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = 'tab-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white hover:bg-slate-700/50';
-            });
-            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
-            if (activeBtn) activeBtn.className = 'tab-btn active px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow';
-
-            document.querySelectorAll('[id^="mobile-tab-"]').forEach(btn => {
-                btn.className = 'px-3 py-1.5 rounded-lg font-bold shrink-0 text-slate-300';
-            });
-            const activeMobile = document.getElementById(`mobile-tab-${tabId}`);
-            if (activeMobile) activeMobile.className = 'px-3 py-1.5 rounded-lg font-bold shrink-0 bg-indigo-600 text-white';
-
-            renderAllViews();
-        }
-
-        function renderAllViews() {
-            renderCallerCones();
-            renderQueueList();
-            renderProjectorCones();
-            renderRosterTable();
-            renderHistoryTable();
+        function updateTeacherDropdown() {
+            const select = document.getElementById('roster-teacher-filter');
+            const teachers = Array.from(new Set(roster.map(s => s.teacher))).sort();
+            select.innerHTML = `<option value="">All Teachers</option>` + teachers.map(t => `<option value="${t}">${t}</option>`).join('');
         }
 
         function openAddStudentModal() {
-            editingStudentIndex = -1;
-            document.getElementById('student-modal-title').innerText = 'Add Student';
-            document.getElementById('modal-student-tag').value = '';
-            document.getElementById('modal-student-first').value = '';
-            document.getElementById('modal-student-last').value = '';
-            document.getElementById('modal-student-grade').value = '';
-            document.getElementById('modal-student-teacher').value = '';
+            document.getElementById('student-modal-title').textContent = "Add Student";
+            document.getElementById('edit-student-index').value = "-1";
+            document.getElementById('modal-student-tag').value = "";
+            document.getElementById('modal-student-fname').value = "";
+            document.getElementById('modal-student-lname').value = "";
+            document.getElementById('modal-student-grade').value = "K";
+            document.getElementById('modal-student-teacher').value = "";
             document.getElementById('student-modal').classList.remove('hidden');
         }
 
-        function openEditStudentModal(index) {
-            editingStudentIndex = index;
-            const student = appState.roster[index];
-            if (!student) return;
-
-            document.getElementById('student-modal-title').innerText = 'Edit Student';
-            document.getElementById('modal-student-tag').value = student.tag;
-            document.getElementById('modal-student-first').value = student.firstName;
-            document.getElementById('modal-student-last').value = student.lastName;
-            document.getElementById('modal-student-grade').value = student.grade || '';
-            document.getElementById('modal-student-teacher').value = student.teacher || '';
+        function editStudentModal(index) {
+            const s = roster[index];
+            document.getElementById('student-modal-title').textContent = "Edit Student";
+            document.getElementById('edit-student-index').value = index;
+            document.getElementById('modal-student-tag').value = s.tag;
+            document.getElementById('modal-student-fname').value = s.firstName;
+            document.getElementById('modal-student-lname').value = s.lastName;
+            document.getElementById('modal-student-grade').value = s.grade;
+            document.getElementById('modal-student-teacher').value = s.teacher;
             document.getElementById('student-modal').classList.remove('hidden');
         }
 
@@ -1837,77 +1519,336 @@
             document.getElementById('student-modal').classList.add('hidden');
         }
 
-        function handleSaveStudent(e) {
+        function saveStudentForm(e) {
             e.preventDefault();
-            const student = {
+            const index = parseInt(document.getElementById('edit-student-index').value);
+            const studentObj = {
                 tag: document.getElementById('modal-student-tag').value.trim().toUpperCase(),
-                firstName: document.getElementById('modal-student-first').value.trim(),
-                lastName: document.getElementById('modal-student-last').value.trim(),
-                grade: document.getElementById('modal-student-grade').value.trim(),
+                firstName: document.getElementById('modal-student-fname').value.trim(),
+                lastName: document.getElementById('modal-student-lname').value.trim(),
+                grade: document.getElementById('modal-student-grade').value,
                 teacher: document.getElementById('modal-student-teacher').value.trim()
             };
 
-            if (editingStudentIndex >= 0) {
-                appState.roster[editingStudentIndex] = student;
+            if (index === -1) {
+                roster.push(studentObj);
             } else {
-                appState.roster.push(student);
+                roster[index] = studentObj;
             }
 
-            appState.hasCustomRoster = true;
+            saveRosterStorage();
             closeStudentModal();
-            renderAllViews();
-            broadcastState(false);
-            showToast('Student saved to roster', 'success');
+            renderRosterTable();
+            renderQuickPickTags();
         }
 
         function deleteStudent(index) {
-            appState.roster.splice(index, 1);
-            appState.hasCustomRoster = true;
-            renderAllViews();
-            broadcastState(false);
-            showToast('Student removed', 'info');
+            if (confirm("Are you sure you want to delete this student from the roster?")) {
+                roster.splice(index, 1);
+                saveRosterStorage();
+                renderRosterTable();
+                renderQuickPickTags();
+            }
         }
 
-        function openSyncModal() {
-            const input = document.getElementById('sync-room-input');
-            if (input) input.value = appState.syncRoom;
-            document.getElementById('sync-modal').classList.remove('hidden');
+        function confirmResetRoster() {
+            if (confirm("Reset roster to default demo dataset? This will overwrite local changes.")) {
+                roster = [...DEFAULT_ROSTER];
+                saveRosterStorage();
+                renderRosterTable();
+                renderQuickPickTags();
+            }
         }
 
-        function closeSyncModal() {
-            document.getElementById('sync-modal').classList.add('hidden');
+        // CSV Import / Export
+        function handleCSVUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const mode = document.getElementById('csv-import-mode').value;
+            const reader = new FileReader();
+
+            reader.onload = function(evt) {
+                const text = evt.target.result;
+                const lines = text.split(/\r\n|\n/);
+                const parsed = [];
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line || i === 0 && line.toLowerCase().includes('tag')) continue; // Skip header
+
+                    const cols = line.split(',').map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+                    if (cols.length >= 4) {
+                        parsed.push({
+                            tag: cols[0].toUpperCase(),
+                            firstName: cols[1],
+                            lastName: cols[2],
+                            grade: cols[3],
+                            teacher: cols[4] || 'Unassigned'
+                        });
+                    }
+                }
+
+                if (parsed.length > 0) {
+                    if (mode === 'replace') {
+                        roster = parsed;
+                    } else {
+                        roster = roster.concat(parsed);
+                    }
+                    saveRosterStorage();
+                    renderRosterTable();
+                    renderQuickPickTags();
+                    alert(`Successfully imported ${parsed.length} student entries!`);
+                } else {
+                    alert("No valid roster data rows found in CSV. Expected columns: Tag, First Name, Last Name, Grade, Teacher");
+                }
+            };
+
+            reader.readAsText(file);
         }
 
-        function initClock() {
-            setInterval(() => {
-                const el = document.getElementById('live-clock');
-                if (el) el.innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            }, 1000);
+        function exportRosterCSV() {
+            let csv = "Tag,Student First Name,Student Last Name,Grade,Teacher\n";
+            roster.forEach(s => {
+                csv += `"${s.tag}","${s.firstName}","${s.lastName}","${s.grade}","${s.teacher}"\n`;
+            });
+            downloadCSVFile(csv, `petersburg_roster_${new Date().toISOString().slice(0,10)}.csv`);
         }
 
-        function downloadFile(content, filename, contentType) {
-            const a = document.createElement('a');
-            const blob = new Blob([content], { type: contentType });
-            a.href = URL.createObjectURL(blob);
-            a.download = filename;
-            a.click();
+        // ================= HISTORY LOG VIEW =================
+        function renderHistoryTable() {
+            const tbody = document.getElementById('history-table-body');
+            if (historyLog.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 font-bold">No dismissals logged today.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = historyLog.map(h => `
+                <tr class="hover:bg-slate-50 transition-all">
+                    <td class="p-3 font-bold text-slate-500">${h.time}</td>
+                    <td class="p-3"><span class="px-2 py-1 bg-amber-100 text-amber-900 font-black rounded-lg text-xs">#${h.tag}</span></td>
+                    <td class="p-3 font-extrabold text-slate-800">Cone ${h.cone}</td>
+                    <td class="p-3 font-medium text-slate-700">${h.students}</td>
+                </tr>
+            `).join('');
         }
 
-        function showToast(message, type = 'info') {
-            const toast = document.createElement('div');
-            const bgClass = type === 'success' ? 'bg-emerald-600' : (type === 'warning' ? 'bg-amber-600' : 'bg-slate-900');
-            toast.className = `fixed bottom-4 right-4 ${bgClass} text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-xl z-50 transition-all transform translate-y-2 opacity-0`;
-            toast.innerText = message;
-            document.body.appendChild(toast);
+        function clearHistoryLog() {
+            if (confirm("Clear today's dismissal log?")) {
+                historyLog = [];
+                saveStateStorageAndSync();
+                renderHistoryTable();
+            }
+        }
 
-            setTimeout(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            }, 10);
+        function exportHistoryCSV() {
+            let csv = "Time Released,Tag Number,Cone Number,Students Dismissed\n";
+            historyLog.forEach(h => {
+                csv += `"${h.time}","${h.tag}","${h.cone}","${h.students}"\n`;
+            });
+            downloadCSVFile(csv, `petersburg_dismissal_log_${new Date().toISOString().slice(0,10)}.csv`);
+        }
 
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+        // ================= PRINTABLE HANGTAGS GENERATOR =================
+        function getGroupedHangtags() {
+            const search = document.getElementById('hangtag-search').value.toLowerCase();
+            const groups = {};
+
+            roster.forEach(s => {
+                if (!groups[s.tag]) {
+                    groups[s.tag] = [];
+                }
+                groups[s.tag].push(s);
+            });
+
+            const filteredKeys = Object.keys(groups).filter(tag => {
+                const students = groups[tag];
+                return tag.toLowerCase().includes(search) || 
+                       students.some(s => s.firstName.toLowerCase().includes(search) || s.lastName.toLowerCase().includes(search));
+            }).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+
+            return { groups, keys: filteredKeys };
+        }
+
+        function generatePrintableTagHTML(tag, students) {
+            return `
+                <div class="printable-hangtag page-break">
+                    <div class="printable-card-border">
+                        <!-- Top Header -->
+                        <div class="flex justify-between items-center border-b-8 border-slate-900 pb-5">
+                            <div>
+                                <h1 class="text-3xl font-black text-slate-950 uppercase tracking-tight">PETERSBURG ELEMENTARY</h1>
+                                <p class="text-lg font-black text-slate-700 uppercase tracking-widest mt-0.5">OFFICIAL CAR PICKUP HANGTAG</p>
+                            </div>
+                            <div class="text-right">
+                                <i class="fa-solid fa-car-side text-5xl text-slate-950"></i>
+                            </div>
+                        </div>
+
+                        <!-- Main Giant Tag Number Display -->
+                        <div class="my-auto text-center py-6">
+                            <span class="text-[10rem] font-black text-slate-950 leading-none tracking-widest block">#${tag}</span>
+                        </div>
+
+                        <!-- Bottom Student Roster Info -->
+                        <div class="border-t-8 border-slate-900 pt-5">
+                            <span class="text-xs font-black uppercase text-slate-500 tracking-widest block mb-3">STUDENT(S) ASSIGNED TO VEHICLE:</span>
+                            <div class="grid grid-cols-1 gap-2.5">
+                                ${students.map(s => `
+                                    <div class="flex justify-between items-center text-xl font-black text-slate-950 bg-slate-100 p-3.5 rounded-2xl border-2 border-slate-300">
+                                        <span>${s.firstName.toUpperCase()} ${s.lastName.toUpperCase()}</span>
+                                        <span class="text-lg font-bold text-slate-700">GRADE ${s.grade} — ${s.teacher.toUpperCase()}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Footer Instruction -->
+                        <div class="text-center pt-4 text-[11px] font-black tracking-widest uppercase text-slate-500 border-t border-slate-200 mt-4">
+                            PLEASE HANG FROM REARVIEW MIRROR FACING FORWARD WHILE IN CAR LINE
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHangtagsPreview() {
+            const { groups, keys } = getGroupedHangtags();
+            const grid = document.getElementById('hangtags-preview-grid');
+            document.getElementById('hangtag-showing-count').textContent = `Showing ${keys.length} car tag${keys.length === 1 ? '' : 's'}`;
+            document.getElementById('print-total-count').textContent = keys.length;
+
+            if (keys.length === 0) {
+                grid.innerHTML = `<div class="col-span-2 p-8 text-center text-slate-400 font-bold">No car tags found matching search.</div>`;
+                return;
+            }
+
+            grid.innerHTML = keys.map(tag => {
+                const students = groups[tag];
+                return `
+                    <div class="border-4 border-slate-900 rounded-3xl p-6 bg-white shadow-md flex flex-col justify-between min-h-[340px]">
+                        <div>
+                            <div class="flex justify-between items-start border-b-2 border-slate-900 pb-3">
+                                <div>
+                                    <h3 class="font-black text-lg text-slate-900 uppercase">Petersburg Elementary</h3>
+                                    <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Car Pickup Tag</span>
+                                </div>
+                                <i class="fa-solid fa-car-side text-2xl text-slate-900"></i>
+                            </div>
+
+                            <div class="text-6xl font-black text-slate-900 my-4 text-center tracking-widest">
+                                #${tag}
+                            </div>
+
+                            <div class="space-y-1.5 pt-3 border-t-2 border-slate-900">
+                                ${students.map(s => `
+                                    <div class="flex justify-between text-xs font-extrabold text-slate-800">
+                                        <span>• ${s.firstName} ${s.lastName}</span>
+                                        <span class="text-slate-500">Grade ${s.grade} (${s.teacher})</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="pt-4 mt-4 border-t border-slate-200 flex items-center justify-between gap-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Standard Letter Sheet (8.5" x 11")</span>
+                            <button onclick="printSingleHangtag('${tag}')" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow">
+                                <i class="fa-solid fa-print text-amber-400"></i> Print This Tag
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function printSingleHangtag(tag) {
+            const assigned = roster.filter(s => s.tag.toUpperCase() === tag.toUpperCase());
+            const students = assigned.length > 0 ? assigned : [{ firstName: "Guest", lastName: "Tag #" + tag, grade: "-", teacher: "-" }];
+            const printContainer = document.getElementById('print-tags-container');
+
+            printContainer.innerHTML = generatePrintableTagHTML(tag, students);
+            window.print();
+        }
+
+        function printAllHangtags() {
+            const { groups, keys } = getGroupedHangtags();
+            const printContainer = document.getElementById('print-tags-container');
+
+            if (keys.length === 0) {
+                alert("No tags to print based on current search filter.");
+                return;
+            }
+
+            printContainer.innerHTML = keys.map(tag => generatePrintableTagHTML(tag, groups[tag])).join('');
+            window.print();
+        }
+
+        // ================= UTILITIES & HELPERS =================
+        function initLiveClock() {
+            const updateClock = () => {
+                const now = new Date();
+                const clockEl = document.getElementById('live-clock');
+                if (clockEl) {
+                    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        function toggleAudioChime() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('audio-toggle-btn');
+            if (soundEnabled) {
+                btn.className = "p-2 rounded-xl bg-slate-800 text-amber-400 hover:bg-slate-700 transition-all border border-slate-700";
+                btn.innerHTML = `<i class="fa-solid fa-volume-high text-sm"></i>`;
+            } else {
+                btn.className = "p-2 rounded-xl bg-slate-800 text-slate-500 hover:bg-slate-700 transition-all border border-slate-700";
+                btn.innerHTML = `<i class="fa-solid fa-volume-xmark text-sm"></i>`;
+            }
+        }
+
+        function playAudioChime() {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now); // D5 tone
+                osc.frequency.setValueAtTime(880.00, now + 0.12); // A5 tone
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } catch (e) {
+                console.log("Web Audio playback restricted", e);
+            }
+        }
+
+        function downloadCSVFile(content, fileName) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     </script>
 </body>
