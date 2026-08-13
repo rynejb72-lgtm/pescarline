@@ -39,8 +39,24 @@
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white !important; color: black !important; }
-            .page-break { page-break-after: always; }
+            body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+            .page-break { page-break-after: always; break-after: page; page-break-inside: avoid; }
+            
+            /* Full Standard Page Sheet Styling (8.5x11 inch fit) */
+            .printable-hangtag {
+                width: 100% !important;
+                height: 98vh !important;
+                max-height: 98vh !important;
+                box-sizing: border-box !important;
+                padding: 2rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                border: 12px solid #0f172a !important;
+                border-radius: 2rem !important;
+                margin: 0 auto !important;
+                background: white !important;
+            }
         }
         .print-only { display: none; }
     </style>
@@ -60,7 +76,7 @@
                         <h1 class="font-extrabold text-base sm:text-lg tracking-tight text-white leading-tight">Petersburg Elementary</h1>
                         <p class="text-xs text-amber-400 font-semibold flex items-center gap-1">
                             <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse"></span>
-                            <span id="sync-status-text">Local Mode</span>
+                            <span id="sync-status-text">Connecting Sync...</span>
                         </p>
                     </div>
                 </div>
@@ -134,7 +150,7 @@
                             </div>
 
                             <!-- Real-time Student Search Dropdown -->
-                            <div id="student-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-64 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+                            <div id="student-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
                                 <!-- Populated dynamically by JS search -->
                             </div>
                         </form>
@@ -174,7 +190,7 @@
                 <!-- Active 5-Cone Loading Zone Display -->
                 <div class="lg:col-span-2 bg-slate-900 text-white p-4 sm:p-6 rounded-2xl shadow-xl border border-slate-800 flex flex-col justify-between">
                     <div>
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                             <div>
                                 <h2 class="text-lg sm:text-xl font-black text-amber-400 flex items-center gap-2">
                                     <i class="fa-solid fa-traffic-cone text-amber-400"></i> Outdoor Loading Cones (1–5)
@@ -182,7 +198,17 @@
                                 <p class="text-xs text-slate-400">Vehicles parked at cones loading students.</p>
                             </div>
                             <button onclick="dismissCurrentBatch()" class="bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 transition-all">
-                                Release Cones 1–5 <i class="fa-solid fa-arrow-right"></i>
+                                Release All Cones 1–5 <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+
+                        <!-- Batch Status Banner -->
+                        <div id="batch-status-banner" class="hidden mb-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-300">
+                            <span class="flex items-center gap-2 font-bold">
+                                <i class="fa-solid fa-hourglass-half animate-spin"></i> Batch Release Active — Queue line held until all 5 cones clear
+                            </span>
+                            <button onclick="dismissCurrentBatch()" class="px-2 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg font-black text-[11px] transition-all">
+                                Clear Remaining Cones
                             </button>
                         </div>
 
@@ -228,8 +254,13 @@
                     </div>
                 </div>
 
+                <!-- Display Batch Status Banner -->
+                <div id="projector-batch-banner" class="hidden my-2 p-3 bg-amber-500/20 border border-amber-500/40 rounded-2xl text-amber-300 text-center font-bold text-sm tracking-wide">
+                    <i class="fa-solid fa-hourglass-half animate-spin mr-2"></i> Current Batch Releasing — Next group advances after all 5 cones clear
+                </div>
+
                 <!-- Cones Projector Grid -->
-                <div id="projector-cone-grid" class="grid grid-cols-1 sm:grid-cols-5 gap-4 my-6">
+                <div id="projector-cone-grid" class="grid grid-cols-1 sm:grid-cols-5 gap-4 my-4">
                     <!-- Rendered via JS -->
                 </div>
 
@@ -376,16 +407,30 @@
         <!-- ================= TAB 5: PRINTABLE HANGTAGS ================= -->
         <div id="view-hangtags" class="tab-view space-y-6 hidden">
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-                <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
                     <div>
                         <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
                             <i class="fa-solid fa-id-card text-indigo-600"></i> Rearview Mirror Hangtag Generator
                         </h2>
-                        <p class="text-xs text-slate-500">Print large, scannable tags for parent vehicle windshields.</p>
+                        <p class="text-xs text-slate-500">Print full-sheet (8.5" x 11") car tags individually or as a batch for windshield display.</p>
                     </div>
-                    <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
-                        <i class="fa-solid fa-print"></i> Print Hangtags
-                    </button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="printAllHangtags()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
+                            <i class="fa-solid fa-print"></i> Print All Tags (<span id="print-total-count">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hangtag Filter & Single Search -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="relative w-full sm:w-72">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="hangtag-search" oninput="renderHangtagsPreview()" placeholder="Search tag # or student..." 
+                            class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-600">
+                    </div>
+                    <div class="text-xs font-bold text-slate-500 flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <span id="hangtag-showing-count" class="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-100">Showing 0 tags</span>
+                    </div>
                 </div>
 
                 <div id="hangtags-preview-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -509,20 +554,20 @@
             </div>
             
             <p class="text-xs text-slate-600 leading-relaxed">
-                Enter a shared Room Code to pair outdoor caller phones with indoor projector displays in real time over Wi-Fi/Cellular.
+                Enter a shared Room Code to pair outdoor caller phones with indoor cafeteria display screens in real time over Wi-Fi or Cellular.
             </p>
 
             <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Sync Room Code</label>
                 <div class="flex gap-2">
                     <input type="text" id="sync-room-input" placeholder="e.g. PETERSBURG-1" class="w-full px-3 py-2 border border-slate-300 rounded-xl font-black text-base focus:border-indigo-600 outline-none uppercase">
-                    <button onclick="connectMQTT()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow shrink-0">Connect</button>
+                    <button onclick="connectRoomSync()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow shrink-0">Connect</button>
                 </div>
             </div>
 
             <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
                 <span class="font-bold text-slate-800 block mb-1">Current Sync Status:</span>
-                <span id="sync-modal-status" class="font-mono text-indigo-600 font-bold">Local Standalone</span>
+                <span id="sync-modal-status" class="font-mono text-indigo-600 font-bold">Connecting...</span>
             </div>
 
             <div class="flex justify-end pt-2">
@@ -531,8 +576,93 @@
         </div>
     </div>
 
+    <!-- Firebase Real-time Multi-device Sync SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'petersburg-carline';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let firestoreUnsubscribe = null;
+
+        if (firebaseConfig) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const doAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch(e) {
+                        try { await signInAnonymously(auth); } catch(err){}
+                    }
+                };
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    if (user && window.subscribeFirestoreRoom) {
+                        window.subscribeFirestoreRoom();
+                    }
+                });
+
+                doAuth();
+            } catch(e) {
+                console.warn("Firebase initialization skipped:", e);
+            }
+        }
+
+        window.broadcastFirestoreState = async function(payload, isNewCall) {
+            if (!db || !currentUser || !window.appState) return false;
+            try {
+                const roomCode = window.appState.syncRoom || 'PETERSBURG-1';
+                const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode);
+                await setDoc(roomDocRef, {
+                    sender: window.clientId,
+                    isNewCall: isNewCall,
+                    payload: payload,
+                    updatedAt: Date.now()
+                }, { merge: true });
+                return true;
+            } catch(e) {
+                console.error("Firestore broadcast error:", e);
+                return false;
+            }
+        };
+
+        window.subscribeFirestoreRoom = function() {
+            if (!db || !currentUser || !window.appState) return;
+            if (firestoreUnsubscribe) firestoreUnsubscribe();
+
+            const roomCode = window.appState.syncRoom || 'PETERSBURG-1';
+            const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode);
+
+            updateSyncStatusUI('Connected (Cloud Sync)', true);
+
+            firestoreUnsubscribe = onSnapshot(roomDocRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data();
+                    if (data && data.sender !== window.clientId && data.payload) {
+                        window.applyIncomingState(data.payload, data.isNewCall);
+                    }
+                }
+            }, (err) => {
+                console.warn("Firestore snapshot listener:", err);
+            });
+        };
+    </script>
+
     <script>
-        // Default Demo Data (Used only on initial startup or explicit user reset)
+        // Default Demo Data
         const DEMO_STUDENTS = [
             { tag: '101', firstName: 'Emma', lastName: 'Johnson', grade: 'K', teacher: 'Mrs. Davis' },
             { tag: '101', firstName: 'Noah', lastName: 'Johnson', grade: '3', teacher: 'Mr. Wilson' },
@@ -548,21 +678,23 @@
         ];
 
         // Global State Management
-        let appState = {
+        window.appState = {
             roster: [],
-            hasCustomRoster: false, // Flag to block auto-demofill on reload/sync
-            cones: [null, null, null, null, null], // Cones 1-5
-            queue: [], // Waiting car tags
+            hasCustomRoster: false,
+            cones: [null, null, null, null, null],
+            queue: [],
             dismissedLog: [],
-            syncRoom: 'PETERSBURG-' + Math.floor(1000 + Math.random() * 9000),
-            audioEnabled: true
+            syncRoom: 'PETERSBURG-1',
+            audioEnabled: true,
+            batchReleased: false // Tracks if releasing has begun for the active batch
         };
 
-        const clientId = 'carline_' + Math.random().toString(16).substring(2, 10);
+        window.clientId = 'carline_' + Math.random().toString(16).substring(2, 10);
         let mqttClient = null;
         let audioCtx = null;
         let editingStudentIndex = -1;
         let currentAdjustingConeIndex = -1;
+        let isConnectedViaMQTT = false;
 
         // Initialize Application
         window.addEventListener('DOMContentLoaded', () => {
@@ -570,7 +702,7 @@
             initClock();
             renderAllViews();
             setupTagInputListener();
-            connectMQTT();
+            connectRoomSync();
         });
 
         function saveLocalStorage() {
@@ -582,9 +714,10 @@
                     queue: appState.queue,
                     dismissedLog: appState.dismissedLog,
                     syncRoom: appState.syncRoom,
-                    audioEnabled: appState.audioEnabled
+                    audioEnabled: appState.audioEnabled,
+                    batchReleased: appState.batchReleased
                 }));
-            } catch(e) { console.error('LocalStorage write failed:', e); }
+            } catch(e) {}
         }
 
         function loadLocalStorage() {
@@ -599,6 +732,7 @@
                     appState.dismissedLog = parsed.dismissedLog || [];
                     if (parsed.syncRoom) appState.syncRoom = parsed.syncRoom;
                     if (parsed.audioEnabled !== undefined) appState.audioEnabled = parsed.audioEnabled;
+                    if (parsed.batchReleased !== undefined) appState.batchReleased = parsed.batchReleased;
                 } else {
                     appState.roster = [...DEMO_STUDENTS];
                 }
@@ -607,80 +741,131 @@
             }
         }
 
+        function applyIncomingState(payload, isNewCall) {
+            appState.cones = payload.cones;
+            appState.queue = payload.queue;
+            appState.dismissedLog = payload.dismissedLog;
+            if (payload.batchReleased !== undefined) appState.batchReleased = payload.batchReleased;
+            if (payload.hasCustomRoster && payload.roster && payload.roster.length > 0) {
+                appState.roster = payload.roster;
+                appState.hasCustomRoster = true;
+            }
+            renderAllViews();
+            if (isNewCall && appState.audioEnabled) playChimeSound();
+        }
+        window.applyIncomingState = applyIncomingState;
+
         function broadcastState(isNewCall = false) {
             saveLocalStorage();
-            if (mqttClient && mqttClient.isConnected()) {
-                const topic = `petersburg_elem_carline/${appState.syncRoom}`;
-                const message = new Paho.MQTT.Message(JSON.stringify({
-                    type: 'STATE_UPDATE',
-                    sender: clientId,
-                    isNewCall: isNewCall,
-                    payload: {
-                        cones: appState.cones,
-                        queue: appState.queue,
-                        dismissedLog: appState.dismissedLog,
-                        roster: appState.hasCustomRoster ? appState.roster : [],
-                        hasCustomRoster: appState.hasCustomRoster
-                    }
-                }));
-                message.destinationName = topic;
-                mqttClient.send(message);
+            const payload = {
+                cones: appState.cones,
+                queue: appState.queue,
+                dismissedLog: appState.dismissedLog,
+                batchReleased: appState.batchReleased,
+                roster: appState.hasCustomRoster ? appState.roster : [],
+                hasCustomRoster: appState.hasCustomRoster
+            };
+
+            // Attempt Firebase Cloud sync first
+            if (window.broadcastFirestoreState) {
+                window.broadcastFirestoreState(payload, isNewCall);
+            }
+
+            // Also broadcast over MQTT if connected
+            if (mqttClient && isConnectedViaMQTT) {
+                try {
+                    const topic = `petersburg_elem_carline/${appState.syncRoom}`;
+                    const message = new Paho.MQTT.Message(JSON.stringify({
+                        type: 'STATE_UPDATE',
+                        sender: clientId,
+                        isNewCall: isNewCall,
+                        payload: payload
+                    }));
+                    message.destinationName = topic;
+                    mqttClient.send(message);
+                } catch(e) {}
             }
         }
 
-        function connectMQTT() {
+        // Connect Room Sync with SSL & Fallback Brokers
+        function connectRoomSync() {
             const roomInput = document.getElementById('sync-room-input');
             if (roomInput && roomInput.value.trim()) {
                 appState.syncRoom = roomInput.value.trim().toUpperCase();
             }
 
-            const statusText = document.getElementById('sync-status-text');
-            const statusDot = document.getElementById('sync-status-dot');
-            const modalStatus = document.getElementById('sync-modal-status');
+            // Re-subscribe to Firebase Firestore room
+            if (window.subscribeFirestoreRoom) {
+                window.subscribeFirestoreRoom();
+            }
 
-            if (statusText) statusText.innerText = 'Connecting...';
+            // Connect to Secure WebSocket MQTT broker (HiveMQ SSL port 8884 with WSS)
+            connectSecureMQTT('broker.hivemq.com', 8884, '/mqtt', () => {
+                // Secondary fallback if HiveMQ is blocked: EMQX Secure Broker
+                connectSecureMQTT('broker.emqx.io', 8084, '/mqtt', () => {
+                    if (!window.firebaseConnected) {
+                        updateSyncStatusUI('Local Standalone', false);
+                    }
+                });
+            });
+        }
 
+        function connectSecureMQTT(host, port, path, onFailureCallback) {
             try {
-                mqttClient = new Paho.MQTT.Client('broker.hivemq.com', 8000, clientId);
-                mqttClient.onConnectionLost = (responseObject) => {
-                    if (statusText) statusText.innerText = 'Local Mode';
-                    if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-amber-400 inline-block';
-                    if (modalStatus) modalStatus.innerText = 'Disconnected (Local Standalone)';
+                if (mqttClient) {
+                    try { mqttClient.disconnect(); } catch(e) {}
+                }
+
+                mqttClient = new Paho.MQTT.Client(host, port, path, clientId);
+                
+                mqttClient.onConnectionLost = () => {
+                    isConnectedViaMQTT = false;
+                    if (onFailureCallback) onFailureCallback();
                 };
+
                 mqttClient.onMessageArrived = (message) => {
                     try {
                         const data = JSON.parse(message.payloadString);
                         if (data.sender !== clientId && data.type === 'STATE_UPDATE') {
-                            appState.cones = data.payload.cones;
-                            appState.queue = data.payload.queue;
-                            appState.dismissedLog = data.payload.dismissedLog;
-                            if (data.payload.hasCustomRoster && data.payload.roster.length > 0) {
-                                appState.roster = data.payload.roster;
-                                appState.hasCustomRoster = true;
-                            }
-                            renderAllViews();
-                            if (data.isNewCall && appState.audioEnabled) playChimeSound();
+                            applyIncomingState(data.payload, data.isNewCall);
                         }
-                    } catch(e) { console.error('MQTT message error:', e); }
+                    } catch(e) {}
                 };
 
                 mqttClient.connect({
+                    useSSL: true, // MANDATORY for secure HTTPS contexts
+                    timeout: 4,
                     onSuccess: () => {
+                        isConnectedViaMQTT = true;
                         const topic = `petersburg_elem_carline/${appState.syncRoom}`;
                         mqttClient.subscribe(topic);
-                        if (statusText) statusText.innerText = `Synced: ${appState.syncRoom}`;
-                        if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
-                        if (modalStatus) modalStatus.innerText = `Connected to Room: ${appState.syncRoom}`;
+                        updateSyncStatusUI(`Synced: ${appState.syncRoom} (WSS)`, true);
                         broadcastState(false);
                     },
                     onFailure: () => {
-                        if (statusText) statusText.innerText = 'Local Mode';
-                        if (modalStatus) modalStatus.innerText = 'Connection Failed (Using Local)';
-                    },
-                    useSSL: false
+                        isConnectedViaMQTT = false;
+                        if (onFailureCallback) onFailureCallback();
+                    }
                 });
             } catch(e) {
-                if (statusText) statusText.innerText = 'Local Mode';
+                isConnectedViaMQTT = false;
+                if (onFailureCallback) onFailureCallback();
+            }
+        }
+
+        function updateSyncStatusUI(statusText, isConnected) {
+            const statusTextEl = document.getElementById('sync-status-text');
+            const statusDotEl = document.getElementById('sync-status-dot');
+            const modalStatusEl = document.getElementById('sync-modal-status');
+
+            if (statusTextEl) statusTextEl.innerText = statusText;
+            if (statusDotEl) {
+                statusDotEl.className = isConnected 
+                    ? 'w-2 h-2 rounded-full bg-emerald-400 inline-block' 
+                    : 'w-2 h-2 rounded-full bg-amber-400 inline-block';
+            }
+            if (modalStatusEl) {
+                modalStatusEl.innerText = `${statusText} - Room Code: ${appState.syncRoom}`;
             }
         }
 
@@ -693,7 +878,6 @@
             const tagClean = tagNumStr.trim().toUpperCase();
             if (!tagClean) return;
 
-            // Check duplicate calls
             const isAlreadyInCone = appState.cones.some(c => c && c.tag === tagClean);
             const isAlreadyInQueue = appState.queue.includes(tagClean);
 
@@ -714,23 +898,49 @@
             showToast(`Called Tag #${tagClean} (${studentNames})`, 'success');
         }
 
+        // QUEUE SHIFTING LOGIC:
+        // The queue line ONLY refills empty cone slots when ALL 5 cone slots are completely empty.
+        // If an individual tag is released while other cones are still active, the queue waits!
         function shiftQueueToCones() {
-            for (let i = 0; i < 5; i++) {
-                if (appState.cones[i] === null && appState.queue.length > 0) {
-                    const nextTag = appState.queue.shift();
-                    appState.cones[i] = {
-                        tag: nextTag,
-                        students: getStudentsForTag(nextTag),
-                        calledAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    };
+            const allConesEmpty = appState.cones.every(c => c === null);
+
+            // If all 5 cones are cleared/empty, reset batch release flag and pull the next batch of up to 5 cars from queue
+            if (allConesEmpty) {
+                appState.batchReleased = false;
+                for (let i = 0; i < 5; i++) {
+                    if (appState.queue.length > 0) {
+                        const nextTag = appState.queue.shift();
+                        appState.cones[i] = {
+                            tag: nextTag,
+                            students: getStudentsForTag(nextTag),
+                            calledAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                    }
+                }
+                return;
+            }
+
+            // If releasing has NOT started yet for this batch, allow newly called tags to fill remaining empty cone slots
+            if (!appState.batchReleased) {
+                for (let i = 0; i < 5; i++) {
+                    if (appState.cones[i] === null && appState.queue.length > 0) {
+                        const nextTag = appState.queue.shift();
+                        appState.cones[i] = {
+                            tag: nextTag,
+                            students: getStudentsForTag(nextTag),
+                            calledAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                    }
                 }
             }
         }
 
-        // ZERO LATENCY DISMISSAL
         function dismissCone(index, triggerBroadcast = true) {
             const item = appState.cones[index];
             if (!item) return;
+
+            // Mark that releasing has begun for this batch so queue line holds until all 5 cones clear
+            appState.batchReleased = true;
 
             const finalStudents = item.students || getStudentsForTag(item.tag);
             const logEntry = {
@@ -755,22 +965,26 @@
 
         function dismissCurrentBatch() {
             let releasedCount = 0;
+            appState.batchReleased = true;
             for (let i = 0; i < 5; i++) {
                 if (appState.cones[i] !== null) {
                     dismissCone(i, false);
                     releasedCount++;
                 }
             }
-            if (releasedCount > 0) {
+            
+            // Force reset batch release and advance queue
+            shiftQueueToCones();
+
+            if (releasedCount > 0 || appState.queue.length > 0) {
                 renderAllViews();
                 broadcastState(false);
-                showToast(`Released Cones 1–5 (${releasedCount} cars)`, 'success');
+                showToast(`Released active cones and advanced queue line!`, 'success');
             } else {
                 showToast('No active vehicles in Cones 1–5', 'warning');
             }
         }
 
-        // MISTAKE CORRECTION & WRONG TAG REMOVAL
         function removeWrongCallFromCone(index) {
             const item = appState.cones[index];
             if (!item) return;
@@ -813,16 +1027,31 @@
 
         function renderCallerCones() {
             const grid = document.getElementById('cone-grid');
+            const batchBanner = document.getElementById('batch-status-banner');
             if (!grid) return;
+
+            const hasActiveCones = appState.cones.some(c => c !== null);
+            const isBatchHolding = appState.batchReleased && hasActiveCones && appState.queue.length > 0;
+
+            if (batchBanner) {
+                if (isBatchHolding) {
+                    batchBanner.classList.remove('hidden');
+                } else {
+                    batchBanner.classList.add('hidden');
+                }
+            }
 
             grid.innerHTML = appState.cones.map((cone, idx) => {
                 const coneNum = idx + 1;
                 if (!cone) {
+                    const emptyLabel = appState.batchReleased && hasActiveCones
+                        ? 'Released (Waiting for Batch)'
+                        : 'Empty Cone';
                     return `
-                        <div class="bg-slate-800/60 border-2 border-dashed border-slate-700/80 rounded-2xl p-3 flex flex-col items-center justify-center min-h-[145px] text-center">
+                        <div class="bg-slate-800/60 border-2 border-dashed ${appState.batchReleased ? 'border-amber-500/40' : 'border-slate-700/80'} rounded-2xl p-3 flex flex-col items-center justify-center min-h-[145px] text-center">
                             <span class="w-7 h-7 rounded-full bg-slate-700 text-slate-400 text-xs font-black flex items-center justify-center mb-2">${coneNum}</span>
-                            <i class="fa-solid fa-traffic-cone text-slate-600 text-2xl mb-1"></i>
-                            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Empty Cone</span>
+                            <i class="fa-solid fa-traffic-cone ${appState.batchReleased ? 'text-amber-500/50' : 'text-slate-600'} text-2xl mb-1"></i>
+                            <span class="text-[10px] sm:text-[11px] font-bold ${appState.batchReleased ? 'text-amber-400/80' : 'text-slate-500'} uppercase tracking-wider">${emptyLabel}</span>
                         </div>
                     `;
                 }
@@ -999,15 +1228,26 @@
         function renderProjectorCones() {
             const grid = document.getElementById('projector-cone-grid');
             const upcomingList = document.getElementById('projector-upcoming-list');
+            const projBanner = document.getElementById('projector-batch-banner');
             if (!grid) return;
+
+            const hasActiveCones = appState.cones.some(c => c !== null);
+            if (projBanner) {
+                if (appState.batchReleased && hasActiveCones && appState.queue.length > 0) {
+                    projBanner.classList.remove('hidden');
+                } else {
+                    projBanner.classList.add('hidden');
+                }
+            }
 
             grid.innerHTML = appState.cones.map((cone, idx) => {
                 const coneNum = idx + 1;
                 if (!cone) {
+                    const statusText = appState.batchReleased && hasActiveCones ? 'RELEASED' : 'OPEN SLOT';
                     return `
                         <div class="bg-slate-900/80 border-2 border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[220px] text-center">
                             <span class="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 font-black text-xl flex items-center justify-center mb-3">CONE ${coneNum}</span>
-                            <span class="text-base font-bold text-slate-600 uppercase tracking-widest">OPEN SLOT</span>
+                            <span class="text-base font-bold ${appState.batchReleased && hasActiveCones ? 'text-amber-400/80' : 'text-slate-600'} uppercase tracking-widest">${statusText}</span>
                         </div>
                     `;
                 }
@@ -1118,7 +1358,6 @@
             `).join('');
         }
 
-        // CSV IMPORT WITH PROTECTED CUSTOM LOCK
         function handleCSVUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1132,7 +1371,7 @@
                 const newStudents = [];
 
                 lines.forEach((line, index) => {
-                    if (index === 0 && line.toLowerCase().includes('tag')) return; // skip header
+                    if (index === 0 && line.toLowerCase().includes('tag')) return;
                     const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
                     if (parts.length >= 3 && parts[0]) {
                         newStudents.push({
@@ -1151,7 +1390,7 @@
                     } else {
                         appState.roster = [...appState.roster, ...newStudents];
                     }
-                    appState.hasCustomRoster = true; // LOCK CUSTOM ROSTER
+                    appState.hasCustomRoster = true;
                     renderAllViews();
                     broadcastState(false);
                     showToast(`Successfully loaded ${newStudents.length} students from CSV!`, 'success');
@@ -1220,9 +1459,11 @@
         function renderHangtagsPreview() {
             const previewGrid = document.getElementById('hangtags-preview-grid');
             const printContainer = document.getElementById('print-tags-container');
+            const searchInput = document.getElementById('hangtag-search')?.value.toLowerCase().trim() || '';
+            const countNav = document.getElementById('print-total-count');
+            const showingCountEl = document.getElementById('hangtag-showing-count');
             if (!previewGrid) return;
 
-            // Group students by Tag Number
             const grouped = {};
             appState.roster.forEach(s => {
                 const tag = String(s.tag).toUpperCase();
@@ -1230,34 +1471,130 @@
                 grouped[tag].push(s);
             });
 
-            const tagsArray = Object.keys(grouped);
+            let tagsArray = Object.keys(grouped);
+            if (countNav) countNav.innerText = tagsArray.length;
 
-            const cardsHtml = tagsArray.map(tag => {
-                const students = grouped[tag];
+            if (searchInput) {
+                tagsArray = tagsArray.filter(tag => {
+                    if (tag.toLowerCase().includes(searchInput)) return true;
+                    return grouped[tag].some(s => `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchInput));
+                });
+            }
+
+            if (showingCountEl) showingCountEl.innerText = `Showing ${tagsArray.length} tag${tagsArray.length === 1 ? '' : 's'}`;
+
+            if (tagsArray.length === 0) {
+                previewGrid.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">No matching hangtags found.</div>`;
+                if (printContainer) printContainer.innerHTML = '';
+                return;
+            }
+
+            // Generate HTML template function for full sheet standard paper format
+            const createTagHtml = (tag, isPrintOnly = false) => {
+                const students = grouped[tag] || [];
                 const namesList = students.map(s => `
-                    <div class="text-lg font-black text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
-                    <div class="text-xs font-bold text-slate-500 mb-1">Grade ${s.grade || '-'} • ${s.teacher || '-'}</div>
+                    <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
+                    <div class="text-sm sm:text-base font-bold text-indigo-700 mb-2">Grade ${s.grade || '-'} &bull; ${s.teacher || '-'}</div>
                 `).join('');
 
                 return `
-                    <div class="border-4 border-slate-900 rounded-3xl p-6 bg-white shadow-md flex flex-col justify-between h-[340px] text-center relative overflow-hidden page-break">
-                        <div class="w-16 h-16 border-4 border-slate-900 rounded-full mx-auto -mt-10 bg-slate-100"></div>
-                        <div class="my-2">
-                            <span class="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">PETERSBURG ELEMENTARY</span>
-                            <div class="text-6xl font-black text-indigo-900 tracking-tighter">#${tag}</div>
+                    <div class="${isPrintOnly ? 'printable-hangtag page-break' : 'border-8 border-slate-900 rounded-3xl p-6 bg-white shadow-lg flex flex-col justify-between min-h-[500px] text-center relative overflow-hidden'}">
+                        
+                        <!-- Top Hook Cutout Alignment Guide -->
+                        <div>
+                            <div class="w-20 h-20 border-4 border-dashed border-slate-400 rounded-full mx-auto -mt-2 bg-slate-50 flex items-center justify-center">
+                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cutout</span>
+                            </div>
+                            <div class="text-[11px] font-black uppercase tracking-widest text-slate-500 mt-2">PETERSBURG ELEMENTARY SCHOOL</div>
                         </div>
-                        <div class="border-t-2 border-slate-200 pt-3 space-y-1">
+
+                        <!-- Full Sheet Main Tag Number Display -->
+                        <div class="my-4">
+                            <span class="text-xs font-black uppercase tracking-widest text-indigo-600 block mb-1">CAR LINE TAG</span>
+                            <div class="text-7xl sm:text-8xl font-black text-slate-950 tracking-tighter leading-none">#${tag}</div>
+                        </div>
+
+                        <!-- Roster Details -->
+                        <div class="border-t-4 border-slate-900 pt-4 space-y-2">
                             ${namesList}
                         </div>
-                        <div class="bg-slate-900 text-white py-1.5 px-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mt-2">
-                            Display On Rearview Mirror
+
+                        <!-- Bottom Visibility Banner -->
+                        <div class="bg-slate-900 text-amber-400 py-2 px-4 rounded-2xl text-xs font-black uppercase tracking-widest mt-4">
+                            PLEASE HANG FROM REARVIEW MIRROR
                         </div>
                     </div>
                 `;
-            }).join('');
+            };
 
-            previewGrid.innerHTML = cardsHtml;
-            if (printContainer) printContainer.innerHTML = cardsHtml;
+            // Render Preview Cards with individual "Print This Tag" action bar
+            previewGrid.innerHTML = tagsArray.map(tag => `
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-slate-100 p-2.5 rounded-2xl border border-slate-200">
+                        <span class="font-black text-xs text-slate-700">Tag #${tag}</span>
+                        <button onclick="printSingleTag('${tag}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
+                            <i class="fa-solid fa-print"></i> Print This Tag
+                        </button>
+                    </div>
+                    ${createTagHtml(tag, false)}
+                </div>
+            `).join('');
+
+            // Populate Print Container for Batch Printing
+            if (printContainer) {
+                printContainer.innerHTML = tagsArray.map(tag => createTagHtml(tag, true)).join('');
+            }
+        }
+
+        function printSingleTag(tag) {
+            const printContainer = document.getElementById('print-tags-container');
+            if (!printContainer) return;
+
+            const grouped = {};
+            appState.roster.forEach(s => {
+                const t = String(s.tag).toUpperCase();
+                if (!grouped[t]) grouped[t] = [];
+                grouped[t].push(s);
+            });
+
+            const students = grouped[tag] || [];
+            const namesList = students.map(s => `
+                <div class="text-3xl font-extrabold text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
+                <div class="text-base font-bold text-indigo-700 mb-2">Grade ${s.grade || '-'} &bull; ${s.teacher || '-'}</div>
+            `).join('');
+
+            printContainer.innerHTML = `
+                <div class="printable-hangtag page-break">
+                    <div>
+                        <div class="w-20 h-20 border-4 border-dashed border-slate-400 rounded-full mx-auto -mt-2 bg-slate-50 flex items-center justify-center">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cutout</span>
+                        </div>
+                        <div class="text-[11px] font-black uppercase tracking-widest text-slate-500 mt-2">PETERSBURG ELEMENTARY SCHOOL</div>
+                    </div>
+
+                    <div class="my-4">
+                        <span class="text-xs font-black uppercase tracking-widest text-indigo-600 block mb-1">CAR LINE TAG</span>
+                        <div class="text-8xl font-black text-slate-950 tracking-tighter leading-none">#${tag}</div>
+                    </div>
+
+                    <div class="border-t-4 border-slate-900 pt-4 space-y-2">
+                        ${namesList}
+                    </div>
+
+                    <div class="bg-slate-900 text-amber-400 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-widest mt-4">
+                        PLEASE HANG FROM REARVIEW MIRROR
+                    </div>
+                </div>
+            `;
+
+            window.print();
+            // Restore batch state in print container after trigger
+            renderHangtagsPreview();
+        }
+
+        function printAllHangtags() {
+            renderHangtagsPreview();
+            window.print();
         }
 
         function playChimeSound() {
@@ -1269,8 +1606,8 @@
                 const gain = audioCtx.createGain();
 
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15); // A5
+                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
 
                 gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
@@ -1295,7 +1632,6 @@
             showToast(appState.audioEnabled ? 'Chime sound enabled' : 'Chime sound muted', 'info');
         }
 
-        // Keypad & Student Search Helper Functions
         function searchStudents(query) {
             const clean = query.trim().toLowerCase();
             if (!clean) return [];
@@ -1326,39 +1662,55 @@
                 }
 
                 const matches = searchStudents(val);
+                const isPureNumeric = /^\d+$/.test(val);
 
-                if (resultsBox) {
-                    if (matches.length > 0) {
-                        resultsBox.innerHTML = matches.map(s => `
-                            <div onclick="selectStudentFromSearch('${s.tag}')" class="p-2.5 hover:bg-indigo-50 cursor-pointer flex items-center justify-between transition-colors">
-                                <div>
-                                    <div class="font-bold text-xs text-slate-900">${s.firstName} ${s.lastName}</div>
-                                    <div class="text-[10px] text-slate-500 font-medium">Gr. ${s.grade || '-'} • ${s.teacher || '-'}</div>
+                // For numeric tag entries, keep dropdown hidden so it never obstructs the numeric keypad
+                if (isPureNumeric) {
+                    if (resultsBox) resultsBox.classList.add('hidden');
+                } else {
+                    // For name searches (containing letters), show the search results dropdown
+                    if (resultsBox) {
+                        if (matches.length > 0) {
+                            resultsBox.innerHTML = `
+                                <div class="p-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between px-3 text-[10px] font-bold text-slate-400 uppercase">
+                                    <span>Matching Students (${matches.length})</span>
+                                    <button type="button" onclick="document.getElementById('student-search-results').classList.add('hidden')" class="hover:text-slate-700"><i class="fa-solid fa-xmark"></i> Close</button>
                                 </div>
-                                <span class="px-2 py-1 bg-indigo-100 text-indigo-700 font-black text-xs rounded-lg">#${s.tag}</span>
-                            </div>
-                        `).join('');
-                        resultsBox.classList.remove('hidden');
-                    } else {
-                        resultsBox.innerHTML = `
-                            <div class="p-3 text-xs text-slate-400 italic text-center">
-                                No student matches found for "${val}". Press CALL to dispatch as tag.
-                            </div>
-                        `;
-                        resultsBox.classList.remove('hidden');
+                            ` + matches.map(s => `
+                                <div onclick="selectStudentFromSearch('${s.tag}')" class="p-2.5 hover:bg-indigo-50 cursor-pointer flex items-center justify-between transition-colors">
+                                    <div>
+                                        <div class="font-bold text-xs text-slate-900">${s.firstName} ${s.lastName}</div>
+                                        <div class="text-[10px] text-slate-500 font-medium">Gr. ${s.grade || '-'} • ${s.teacher || '-'}</div>
+                                    </div>
+                                    <span class="px-2 py-1 bg-indigo-100 text-indigo-700 font-black text-xs rounded-lg">#${s.tag}</span>
+                                </div>
+                            `).join('');
+                            resultsBox.classList.remove('hidden');
+                        } else {
+                            resultsBox.classList.add('hidden');
+                        }
                     }
+                }
+
+                // Hide roster preview box for numeric input until at least 3 numbers are entered
+                if (isPureNumeric && val.length < 3) {
+                    if (previewBox) previewBox.classList.add('hidden');
+                    return;
                 }
 
                 const exactStudents = getStudentsForTag(val);
                 if (previewBox && previewNames) {
                     if (exactStudents.length > 0) {
-                        previewNames.innerText = exactStudents.map(s => `${s.firstName} ${s.lastName} (Gr. ${s.grade})`).join(', ');
+                        previewNames.innerHTML = exactStudents.map(s => `<span class="inline-block bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-md mr-1">${s.firstName} ${s.lastName} (Gr. ${s.grade || '-'})</span>`).join(' ');
                         previewBox.classList.remove('hidden');
-                    } else if (matches.length > 0) {
+                    } else if (!isPureNumeric && matches.length > 0) {
                         previewNames.innerText = matches.map(s => `${s.firstName} ${s.lastName} (#${s.tag})`).join(', ');
                         previewBox.classList.remove('hidden');
+                    } else if (isPureNumeric) {
+                        previewNames.innerHTML = `<span class="text-indigo-600 font-semibold">Tag #${val} (Not in roster - will call as unassigned tag)</span>`;
+                        previewBox.classList.remove('hidden');
                     } else {
-                        previewNames.innerText = 'Unassigned Tag Number (Will post as car call)';
+                        previewNames.innerText = 'No student found';
                         previewBox.classList.remove('hidden');
                     }
                 }
@@ -1382,6 +1734,8 @@
 
         function appendKeypad(char) {
             const input = document.getElementById('tag-input');
+            const resultsBox = document.getElementById('student-search-results');
+            if (resultsBox) resultsBox.classList.add('hidden');
             if (input) {
                 input.value += char;
                 input.dispatchEvent(new Event('input'));
@@ -1427,19 +1781,16 @@
             }
         }
 
-        // Tab Switching Handler
         function switchTab(tabId) {
             document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
             document.getElementById(`view-${tabId}`)?.classList.remove('hidden');
 
-            // Header Desktop Buttons
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.className = 'tab-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white hover:bg-slate-700/50';
             });
             const activeBtn = document.getElementById(`tab-btn-${tabId}`);
             if (activeBtn) activeBtn.className = 'tab-btn active px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow';
 
-            // Mobile Tab Buttons
             document.querySelectorAll('[id^="mobile-tab-"]').forEach(btn => {
                 btn.className = 'px-3 py-1.5 rounded-lg font-bold shrink-0 text-slate-300';
             });
@@ -1457,7 +1808,6 @@
             renderHistoryTable();
         }
 
-        // Student Modal Handlers
         function openAddStudentModal() {
             editingStudentIndex = -1;
             document.getElementById('student-modal-title').innerText = 'Add Student';
@@ -1518,7 +1868,6 @@
             showToast('Student removed', 'info');
         }
 
-        // Sync Modal Handlers
         function openSyncModal() {
             const input = document.getElementById('sync-room-input');
             if (input) input.value = appState.syncRoom;
@@ -1529,7 +1878,6 @@
             document.getElementById('sync-modal').classList.add('hidden');
         }
 
-        // Utilities
         function initClock() {
             setInterval(() => {
                 const el = document.getElementById('live-clock');
