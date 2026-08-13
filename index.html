@@ -131,6 +131,9 @@
                     <button onclick="toggleAudioChime()" id="audio-toggle-btn" class="p-2 rounded-xl bg-slate-800 text-amber-400 hover:bg-slate-700 transition-all border border-slate-700" title="Toggle Chime Sound">
                         <i class="fa-solid fa-volume-high text-sm"></i>
                     </button>
+                    <button onclick="refreshSync()" id="refresh-sync-btn" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5" title="Request the latest dismissal state or reconnect sync">
+                        <i class="fa-solid fa-rotate text-emerald-400"></i> Refresh Sync
+                    </button>
                     <button onclick="openSyncModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5">
                         <i class="fa-solid fa-wifi text-indigo-400"></i> Sync Room
                     </button>
@@ -147,6 +150,9 @@
             <button onclick="switchTab('hangtags')" id="mobile-tab-hangtags" class="px-3 py-1.5 rounded-lg font-bold shrink-0 text-slate-300">Print Tags</button>
         </div>
     </header>
+
+    <!-- Caller feedback (used for duplicate-tag warnings) -->
+    <div id="dispatch-feedback" role="alert" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-md w-[calc(100%-2rem)] px-4 py-3 rounded-xl shadow-xl border text-sm font-bold"></div>
 
     <!-- Main Content Area -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 no-print">
@@ -511,6 +517,19 @@
         </div>
     </div>
 
+    <!-- Modal for manually placing a waiting car at a selected cone -->
+    <div id="queue-cone-picker-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="text-lg font-black text-slate-800"><i class="fa-solid fa-traffic-cone text-amber-500 mr-2"></i>Send <span id="queue-picker-tag"></span> to a Cone</h3>
+                <button onclick="closeQueueConePicker()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-500">Choose an open cone. This manual placement is available even while a batch is being released.</p>
+            <div id="queue-cone-picker-options" class="grid grid-cols-5 gap-2"></div>
+            <button onclick="closeQueueConePicker()" class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">Cancel</button>
+        </div>
+    </div>
+
     <!-- Modal for Adding / Editing Roster Student -->
     <div id="student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 no-print">
         <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
@@ -627,7 +646,9 @@
         let soundEnabled = true;
         let syncRoomKey = "PES-DISMISSAL-MAIN";
         let mqttClient = null;
+        let mqttClientId = null;
         let activeAdjustConeId = null;
+        let activeQueueTag = null;
 
         // Web Audio API Chime Synth
         let audioCtx = null;
@@ -717,6 +738,7 @@
             if (!statusText || !statusDot) return;
 
             const clientId = "pes_client_" + Math.random().toString(16).substr(2, 8);
+            mqttClientId = clientId;
             
             // Use WSS (Secure WebSockets over SSL port 8884) to comply with browser security policies
             const useSsl = true;
@@ -767,6 +789,11 @@
         function onMessageArrived(message) {
             try {
                 const data = JSON.parse(message.payloadString);
+                if (data.type === 'sync-request') {
+                    // Reply to another device's manual refresh request with this device's state.
+                    if (data.requesterId !== mqttClientId) sendCurrentStateToSyncRoom('sync-response');
+                    return;
+                }
                 if (data.cones && data.queue) {
                     cones = data.cones;
                     queue = data.queue;
@@ -778,6 +805,60 @@
                 }
             } catch (e) {
                 console.error("Error processing MQTT sync payload", e);
+            }
+        }
+
+        function sendCurrentStateToSyncRoom(type = 'state-update') {
+            if (!mqttClient || typeof mqttClient.isConnected !== 'function' || !mqttClient.isConnected()) return false;
+            try {
+                const message = new Paho.MQTT.Message(JSON.stringify({
+                    type,
+                    cones,
+                    queue,
+                    historyLog,
+                    isBatchHold,
+                    timestamp: Date.now()
+                }));
+                message.destinationName = "pes/carline/" + syncRoomKey;
+                mqttClient.send(message);
+                return true;
+            } catch (err) {
+                console.warn("MQTT sync refresh response failed:", err);
+                return false;
+            }
+        }
+
+        function refreshSync() {
+            const statusText = document.getElementById('sync-status-text');
+            const statusDot = document.getElementById('sync-status-dot');
+            const button = document.getElementById('refresh-sync-btn');
+            button.classList.add('animate-spin');
+            setTimeout(() => button.classList.remove('animate-spin'), 700);
+
+            if (!mqttClient || typeof mqttClient.isConnected !== 'function' || !mqttClient.isConnected()) {
+                statusText.textContent = "Reconnecting Sync...";
+                statusDot.className = "w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse";
+                try { if (mqttClient) mqttClient.disconnect(); } catch (e) {}
+                initMQTTConnection();
+                showDispatchFeedback('Sync reconnect started. Tap Refresh Sync again once it shows as synced.');
+                return;
+            }
+
+            try {
+                const message = new Paho.MQTT.Message(JSON.stringify({
+                    type: 'sync-request',
+                    requesterId: mqttClientId,
+                    timestamp: Date.now()
+                }));
+                message.destinationName = "pes/carline/" + syncRoomKey;
+                mqttClient.send(message);
+                statusText.textContent = "Sync refresh requested";
+                statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 inline-block";
+                showDispatchFeedback('Requested the latest dismissal state from connected devices.');
+            } catch (err) {
+                console.warn("MQTT refresh request failed:", err);
+                showDispatchFeedback('Could not request a sync refresh. Reconnecting now.', 'error');
+                initMQTTConnection();
             }
         }
 
@@ -900,6 +981,19 @@
         }
 
         function dispatchTagNumber(tagNum) {
+            tagNum = tagNum.trim().toUpperCase();
+
+            // A car may only appear once: either at a cone or in the waiting queue.
+            const activeCone = cones.find(c => c.tag.toUpperCase() === tagNum);
+            const queuedCar = queue.find(q => q.tag.toUpperCase() === tagNum);
+            if (activeCone || queuedCar) {
+                showDispatchFeedback(
+                    `Tag #${tagNum} is already ${activeCone ? `active at Cone ${activeCone.id}` : 'in the waiting queue'}. It was not called again.`,
+                    'error'
+                );
+                return false;
+            }
+
             // Find students for this tag
             const assignedStudents = roster.filter(s => s.tag.toUpperCase() === tagNum.toUpperCase());
             const studentData = assignedStudents.length > 0 
@@ -928,6 +1022,19 @@
 
             saveStateStorageAndSync();
             renderAllViews();
+            return true;
+        }
+
+        function showDispatchFeedback(message, type = 'success') {
+            const feedback = document.getElementById('dispatch-feedback');
+            feedback.textContent = message;
+            feedback.className = `fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-md w-[calc(100%-2rem)] px-4 py-3 rounded-xl shadow-xl border text-sm font-bold ${
+                type === 'error'
+                    ? 'bg-rose-50 border-rose-300 text-rose-800'
+                    : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+            }`;
+            clearTimeout(showDispatchFeedback.timer);
+            showDispatchFeedback.timer = setTimeout(() => feedback.classList.add('hidden'), 5000);
         }
 
         function advanceQueueToCones() {
@@ -957,6 +1064,11 @@
         function dismissSingleCone(coneId) {
             const idx = cones.findIndex(c => c.id === coneId);
             if (idx !== -1 && cones[idx].tag !== "") {
+                // The first individual release locks this batch.  Empty cones stay empty
+                // until every vehicle that was part of the current batch has been released.
+                const otherBatchCarsRemain = cones.some((c, coneIndex) => coneIndex !== idx && c.tag !== "");
+                if (otherBatchCarsRemain) isBatchHold = true;
+
                 // Add to history log
                 historyLog.unshift({
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -974,6 +1086,26 @@
                 saveStateStorageAndSync();
                 renderAllViews();
             }
+        }
+
+        // Removes an accidental assignment without recording a dismissal event.
+        // It follows the same batch-lock rule as an individual cone release.
+        function removeConeAssignment(coneId) {
+            const idx = cones.findIndex(c => c.id === coneId);
+            if (idx === -1 || cones[idx].tag === "") return;
+
+            const tag = cones[idx].tag;
+
+            const otherBatchCarsRemain = cones.some((c, coneIndex) => coneIndex !== idx && c.tag !== "");
+            if (otherBatchCarsRemain) isBatchHold = true;
+
+            cones[idx].tag = "";
+            cones[idx].students = [];
+            cones[idx].timestamp = "";
+            advanceQueueToCones();
+            saveStateStorageAndSync();
+            renderAllViews();
+            showDispatchFeedback(`Tag #${tag} was removed from Cone ${coneId}.`);
         }
 
         function dismissCurrentBatch() {
@@ -1011,6 +1143,47 @@
                 saveStateStorageAndSync();
                 renderAllViews();
             }
+        }
+
+        // Let the caller choose an open cone; this intentionally overrides batch hold.
+        function openQueueConePicker(index) {
+            if (index < 0 || index >= queue.length) return;
+            activeQueueTag = queue[index].tag;
+            document.getElementById('queue-picker-tag').textContent = `Tag #${activeQueueTag}`;
+            document.getElementById('queue-cone-picker-options').innerHTML = cones.map(c => c.tag === ""
+                ? `<button onclick="sendQueuedTagToCone(${c.id})" class="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-2 py-3 text-xs font-black text-white">Cone ${c.id}</button>`
+                : `<button disabled class="rounded-xl bg-slate-100 px-2 py-3 text-xs font-bold text-slate-400 line-through">Cone ${c.id}</button>`
+            ).join('');
+            document.getElementById('queue-cone-picker-modal').classList.remove('hidden');
+        }
+
+        function closeQueueConePicker() {
+            document.getElementById('queue-cone-picker-modal').classList.add('hidden');
+            activeQueueTag = null;
+        }
+
+        function sendQueuedTagToCone(coneId) {
+            const queueIndex = queue.findIndex(q => q.tag === activeQueueTag);
+            const coneIndex = cones.findIndex(c => c.id === coneId);
+            if (queueIndex === -1 || coneIndex === -1) {
+                closeQueueConePicker();
+                return;
+            }
+            if (cones[coneIndex].tag !== "") {
+                showDispatchFeedback(`Cone ${coneId} is already occupied.`, 'error');
+                openQueueConePicker(queueIndex);
+                return;
+            }
+
+            const car = queue.splice(queueIndex, 1)[0];
+            cones[coneIndex].tag = car.tag;
+            cones[coneIndex].students = car.students;
+            cones[coneIndex].timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            playAudioChime();
+            saveStateStorageAndSync();
+            renderAllViews();
+            closeQueueConePicker();
+            showDispatchFeedback(`Tag #${car.tag} was sent to Cone ${coneId}.`);
         }
 
         // ================= KEYPAD CONTROLS =================
@@ -1163,6 +1336,9 @@
                                 <button onclick="dismissSingleCone(${c.id})" class="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow transition-all">
                                     Loaded <i class="fa-solid fa-check ml-1"></i>
                                 </button>
+                                <button onclick="removeConeAssignment(${c.id})" class="px-2 py-1.5 bg-rose-500/90 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition-all" title="Remove accidental assignment">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
                                 <button onclick="openAdjustConeModal(${c.id})" class="px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs rounded-xl transition-all" title="Edit or Reassign Cone">
                                     <i class="fa-solid fa-pen"></i>
                                 </button>
@@ -1229,16 +1405,22 @@
                 return;
             }
 
-            const queueCardsHTML = queue.map((q, idx) => `
+            const queueCardsHTML = queue.map((q, idx) => {
+                const names = q.students.map(s => `${s.firstName} ${s.lastName}`).join(' • ');
+                return `
                 <div class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-xl shrink-0 flex items-center gap-2 shadow-sm">
                     <span class="text-xs font-black text-indigo-400">#${idx + 1}</span>
                     <span class="text-sm font-black text-amber-400">#${q.tag}</span>
-                    <span class="text-xs font-bold text-white max-w-[120px] truncate">${q.students[0] ? q.students[0].lastName : ''}</span>
+                    <span class="text-xs font-bold text-white max-w-[180px] truncate" title="${names}">${names}</span>
+                    <button onclick="openQueueConePicker(${idx})" class="text-indigo-300 hover:text-indigo-100 text-xs ml-1 no-print" title="Choose a cone for this car">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                    </button>
                     <button onclick="removeQueueItem(${idx})" class="text-slate-500 hover:text-rose-400 text-xs ml-1 no-print">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
 
             outdoorList.innerHTML = queueCardsHTML;
 
@@ -1246,7 +1428,7 @@
                 <div class="bg-slate-800/80 border border-slate-700/80 px-4 py-2 rounded-xl shrink-0 flex items-center gap-3">
                     <span class="text-xs font-black text-slate-400">P${idx + 1}</span>
                     <span class="text-lg font-black text-amber-400">#${q.tag}</span>
-                    <span class="text-xs font-bold text-slate-200">${q.students.map(s => s.lastName).join(', ')}</span>
+                    <span class="text-xs font-bold text-slate-200">${q.students.map(s => `${s.firstName} ${s.lastName}`).join(' • ')}</span>
                 </div>
             `).join('');
         }
