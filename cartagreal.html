@@ -39,8 +39,24 @@
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white !important; color: black !important; }
-            .page-break { page-break-after: always; }
+            body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+            .page-break { page-break-after: always; break-after: page; page-break-inside: avoid; }
+            
+            /* Full Standard Page Sheet Styling (8.5x11 inch fit) */
+            .printable-hangtag {
+                width: 100% !important;
+                height: 98vh !important;
+                max-height: 98vh !important;
+                box-sizing: border-box !important;
+                padding: 2rem !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                border: 12px solid #0f172a !important;
+                border-radius: 2rem !important;
+                margin: 0 auto !important;
+                background: white !important;
+            }
         }
         .print-only { display: none; }
     </style>
@@ -391,16 +407,30 @@
         <!-- ================= TAB 5: PRINTABLE HANGTAGS ================= -->
         <div id="view-hangtags" class="tab-view space-y-6 hidden">
             <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-                <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
                     <div>
                         <h2 class="text-xl font-black text-slate-900 flex items-center gap-2">
                             <i class="fa-solid fa-id-card text-indigo-600"></i> Rearview Mirror Hangtag Generator
                         </h2>
-                        <p class="text-xs text-slate-500">Print large, scannable tags for parent vehicle windshields.</p>
+                        <p class="text-xs text-slate-500">Print full-sheet (8.5" x 11") car tags individually or as a batch for windshield display.</p>
                     </div>
-                    <button onclick="window.print()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
-                        <i class="fa-solid fa-print"></i> Print Hangtags
-                    </button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="printAllHangtags()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
+                            <i class="fa-solid fa-print"></i> Print All Tags (<span id="print-total-count">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hangtag Filter & Single Search -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="relative w-full sm:w-72">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="hangtag-search" oninput="renderHangtagsPreview()" placeholder="Search tag # or student..." 
+                            class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-600">
+                    </div>
+                    <div class="text-xs font-bold text-slate-500 flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <span id="hangtag-showing-count" class="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-100">Showing 0 tags</span>
+                    </div>
                 </div>
 
                 <div id="hangtags-preview-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1429,6 +1459,9 @@
         function renderHangtagsPreview() {
             const previewGrid = document.getElementById('hangtags-preview-grid');
             const printContainer = document.getElementById('print-tags-container');
+            const searchInput = document.getElementById('hangtag-search')?.value.toLowerCase().trim() || '';
+            const countNav = document.getElementById('print-total-count');
+            const showingCountEl = document.getElementById('hangtag-showing-count');
             if (!previewGrid) return;
 
             const grouped = {};
@@ -1438,34 +1471,130 @@
                 grouped[tag].push(s);
             });
 
-            const tagsArray = Object.keys(grouped);
+            let tagsArray = Object.keys(grouped);
+            if (countNav) countNav.innerText = tagsArray.length;
 
-            const cardsHtml = tagsArray.map(tag => {
-                const students = grouped[tag];
+            if (searchInput) {
+                tagsArray = tagsArray.filter(tag => {
+                    if (tag.toLowerCase().includes(searchInput)) return true;
+                    return grouped[tag].some(s => `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchInput));
+                });
+            }
+
+            if (showingCountEl) showingCountEl.innerText = `Showing ${tagsArray.length} tag${tagsArray.length === 1 ? '' : 's'}`;
+
+            if (tagsArray.length === 0) {
+                previewGrid.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">No matching hangtags found.</div>`;
+                if (printContainer) printContainer.innerHTML = '';
+                return;
+            }
+
+            // Generate HTML template function for full sheet standard paper format
+            const createTagHtml = (tag, isPrintOnly = false) => {
+                const students = grouped[tag] || [];
                 const namesList = students.map(s => `
-                    <div class="text-lg font-black text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
-                    <div class="text-xs font-bold text-slate-500 mb-1">Grade ${s.grade || '-'} • ${s.teacher || '-'}</div>
+                    <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
+                    <div class="text-sm sm:text-base font-bold text-indigo-700 mb-2">Grade ${s.grade || '-'} &bull; ${s.teacher || '-'}</div>
                 `).join('');
 
                 return `
-                    <div class="border-4 border-slate-900 rounded-3xl p-6 bg-white shadow-md flex flex-col justify-between h-[340px] text-center relative overflow-hidden page-break">
-                        <div class="w-16 h-16 border-4 border-slate-900 rounded-full mx-auto -mt-10 bg-slate-100"></div>
-                        <div class="my-2">
-                            <span class="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">PETERSBURG ELEMENTARY</span>
-                            <div class="text-6xl font-black text-indigo-900 tracking-tighter">#${tag}</div>
+                    <div class="${isPrintOnly ? 'printable-hangtag page-break' : 'border-8 border-slate-900 rounded-3xl p-6 bg-white shadow-lg flex flex-col justify-between min-h-[500px] text-center relative overflow-hidden'}">
+                        
+                        <!-- Top Hook Cutout Alignment Guide -->
+                        <div>
+                            <div class="w-20 h-20 border-4 border-dashed border-slate-400 rounded-full mx-auto -mt-2 bg-slate-50 flex items-center justify-center">
+                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cutout</span>
+                            </div>
+                            <div class="text-[11px] font-black uppercase tracking-widest text-slate-500 mt-2">PETERSBURG ELEMENTARY SCHOOL</div>
                         </div>
-                        <div class="border-t-2 border-slate-200 pt-3 space-y-1">
+
+                        <!-- Full Sheet Main Tag Number Display -->
+                        <div class="my-4">
+                            <span class="text-xs font-black uppercase tracking-widest text-indigo-600 block mb-1">CAR LINE TAG</span>
+                            <div class="text-7xl sm:text-8xl font-black text-slate-950 tracking-tighter leading-none">#${tag}</div>
+                        </div>
+
+                        <!-- Roster Details -->
+                        <div class="border-t-4 border-slate-900 pt-4 space-y-2">
                             ${namesList}
                         </div>
-                        <div class="bg-slate-900 text-white py-1.5 px-3 rounded-xl text-[10px] font-bold uppercase tracking-widest mt-2">
-                            Display On Rearview Mirror
+
+                        <!-- Bottom Visibility Banner -->
+                        <div class="bg-slate-900 text-amber-400 py-2 px-4 rounded-2xl text-xs font-black uppercase tracking-widest mt-4">
+                            PLEASE HANG FROM REARVIEW MIRROR
                         </div>
                     </div>
                 `;
-            }).join('');
+            };
 
-            previewGrid.innerHTML = cardsHtml;
-            if (printContainer) printContainer.innerHTML = cardsHtml;
+            // Render Preview Cards with individual "Print This Tag" action bar
+            previewGrid.innerHTML = tagsArray.map(tag => `
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-slate-100 p-2.5 rounded-2xl border border-slate-200">
+                        <span class="font-black text-xs text-slate-700">Tag #${tag}</span>
+                        <button onclick="printSingleTag('${tag}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow flex items-center gap-1.5 transition-all">
+                            <i class="fa-solid fa-print"></i> Print This Tag
+                        </button>
+                    </div>
+                    ${createTagHtml(tag, false)}
+                </div>
+            `).join('');
+
+            // Populate Print Container for Batch Printing
+            if (printContainer) {
+                printContainer.innerHTML = tagsArray.map(tag => createTagHtml(tag, true)).join('');
+            }
+        }
+
+        function printSingleTag(tag) {
+            const printContainer = document.getElementById('print-tags-container');
+            if (!printContainer) return;
+
+            const grouped = {};
+            appState.roster.forEach(s => {
+                const t = String(s.tag).toUpperCase();
+                if (!grouped[t]) grouped[t] = [];
+                grouped[t].push(s);
+            });
+
+            const students = grouped[tag] || [];
+            const namesList = students.map(s => `
+                <div class="text-3xl font-extrabold text-slate-900 leading-tight">${s.firstName} ${s.lastName}</div>
+                <div class="text-base font-bold text-indigo-700 mb-2">Grade ${s.grade || '-'} &bull; ${s.teacher || '-'}</div>
+            `).join('');
+
+            printContainer.innerHTML = `
+                <div class="printable-hangtag page-break">
+                    <div>
+                        <div class="w-20 h-20 border-4 border-dashed border-slate-400 rounded-full mx-auto -mt-2 bg-slate-50 flex items-center justify-center">
+                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cutout</span>
+                        </div>
+                        <div class="text-[11px] font-black uppercase tracking-widest text-slate-500 mt-2">PETERSBURG ELEMENTARY SCHOOL</div>
+                    </div>
+
+                    <div class="my-4">
+                        <span class="text-xs font-black uppercase tracking-widest text-indigo-600 block mb-1">CAR LINE TAG</span>
+                        <div class="text-8xl font-black text-slate-950 tracking-tighter leading-none">#${tag}</div>
+                    </div>
+
+                    <div class="border-t-4 border-slate-900 pt-4 space-y-2">
+                        ${namesList}
+                    </div>
+
+                    <div class="bg-slate-900 text-amber-400 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-widest mt-4">
+                        PLEASE HANG FROM REARVIEW MIRROR
+                    </div>
+                </div>
+            `;
+
+            window.print();
+            // Restore batch state in print container after trigger
+            renderHangtagsPreview();
+        }
+
+        function printAllHangtags() {
+            renderHangtagsPreview();
+            window.print();
         }
 
         function playChimeSound() {
